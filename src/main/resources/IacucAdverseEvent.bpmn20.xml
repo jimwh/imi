@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:activiti="http://activiti.org/bpmn"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             targetNamespace="http://activiti.org/bpmn20">
+
+    <process id="IacucAdverseEvent" name="Review Adverse Event Report">
+
+        <extensionElements>
+            <activiti:executionListener event="start" delegateExpression="${iacucListener}"/>
+        </extensionElements>
+
+        <userTask id="submit" name="Submit">
+            <extensionElements>
+                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+            </extensionElements>
+        </userTask>
+
+        <transaction id="AEVT">
+            <userTask id="adverseEvent" name="Complete Adverse Event Report"/>
+            <userTask id="returnToPI" name="Return to PI" activiti:candidateGroups="IACUC_CAN_RETURN_TO_PI"/>
+
+            <startEvent id="tpStart"/>
+            <parallelGateway id="tpFork"/>
+            <sequenceFlow sourceRef="tpStart" targetRef="tpFork"/>
+            <sequenceFlow sourceRef="tpFork" targetRef="adverseEvent"/>
+            <sequenceFlow sourceRef="tpFork" targetRef="returnToPI"/>
+            <exclusiveGateway id="tpJoin"/>
+            <sequenceFlow sourceRef="adverseEvent" targetRef="tpJoin"/>
+            <sequenceFlow sourceRef="returnToPI" targetRef="tpJoin"/>
+            <endEvent id="tpEnd">
+                <cancelEventDefinition/>
+            </endEvent>
+            <sequenceFlow sourceRef="tpJoin" targetRef="tpEnd"/>
+        </transaction>
+
+        <boundaryEvent id="tpCancelled" attachedToRef="AEVT">
+            <cancelEventDefinition/>
+        </boundaryEvent>
+
+        <startEvent id="theStart"/>
+        <sequenceFlow sourceRef="theStart" targetRef="submit"/>
+        <sequenceFlow sourceRef="submit" targetRef="AEVT"/>
+        <endEvent id="thEnd"/>
+        <sequenceFlow sourceRef="AEVT" targetRef="thEnd"/>
+
+    </process>
+
+</definitions>

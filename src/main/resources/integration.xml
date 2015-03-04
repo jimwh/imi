@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:aop="http://www.springframework.org/schema/aop" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:jpa="http://www.springframework.org/schema/data/jpa"
+       xmlns:int="http://www.springframework.org/schema/integration"
+       xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+       xmlns:int-jdbc="http://www.springframework.org/schema/integration/jdbc"
+       xmlns:task="http://www.springframework.org/schema/task" xmlns:tx="http://www.springframework.org/schema/tx"
+       xsi:schemaLocation="
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd 
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd 
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.0.xsd
+		http://www.springframework.org/schema/data/jpa http://www.springframework.org/schema/data/jpa/spring-jpa-1.2.xsd
+		http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-4.0.xsd
+		http://www.springframework.org/schema/integration/jdbc http://www.springframework.org/schema/integration/jdbc/spring-integration-jdbc-3.0.xsd
+		http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-4.0.xsd
+		http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration-4.0.xsd"
+        >
+
+    <import resource="classpath:datasource.xml"/>
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource" />
+    </bean>
+
+    <!--
+    <jpa:repositories base-package="edu.columbia.rascal.integration.dao"/>
+
+    <bean
+            class="org.springframework.orm.jpa.support.PersistenceAnnotationBeanPostProcessor"/>
+    <bean
+            class="org.springframework.dao.annotation.PersistenceExceptionTranslationPostProcessor"/>
+    <bean
+            class="org.springframework.data.jpa.domain.support.AuditingBeanFactoryPostProcessor"/>
+
+    <jpa:auditing />
+    <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+        <property name="dataSource" ref="dataSource" />
+    </bean>
+
+    <bean id="auditorAwareBean" class="edu.columbia.rascal.integration.audit.AuditorAwareBean" />
+	<jpa:auditing auditor-aware-ref="auditorAwareBean" />
+	-->
+
+    <bean class="org.springframework.jdbc.core.JdbcTemplate">
+        <property name="dataSource" ref="transactionAwareDataSource"/>
+    </bean>
+
+
+    <!-- Activiti Configuration Begin -->
+    <bean id="processEngineConfiguration" class="org.activiti.spring.SpringProcessEngineConfiguration">
+        <property name="processEngineName" value="RASCAL-ACTIVITI-BPM-ENGINE"/>
+        <property name="databaseType" value="oracle"/>
+        <property name="dataSource" ref="transactionAwareDataSource"/>
+        <property name="transactionManager" ref="transactionManager"/>
+        <property name="databaseSchemaUpdate" value="false"/>
+
+        <property name="deploymentResources" value="classpath*:/IacucApprovalProcess.bpmn20.xml" />
+
+        <property name="jobExecutorActivate" value="false"/>
+        <property name="history" value="full"/>
+
+        <property name="customMybatisMappers">
+            <set>
+                <value>edu.columbia.rascal.business.service.IacucMybatisMapper</value>
+            </set>
+        </property>
+    </bean>
+
+    <bean id="processEngine" class="org.activiti.spring.ProcessEngineFactoryBean">
+        <property name="processEngineConfiguration" ref="processEngineConfiguration"/>
+    </bean>
+
+    <bean id="repositoryService" factory-bean="processEngine"
+          factory-method="getRepositoryService"/>
+    <bean id="runtimeService" factory-bean="processEngine"
+          factory-method="getRuntimeService"/>
+    <bean id="taskService" factory-bean="processEngine"
+          factory-method="getTaskService"/>
+    <bean id="historyService" factory-bean="processEngine"
+          factory-method="getHistoryService"/>
+    <bean id="managementService" factory-bean="processEngine"
+          factory-method="getManagementService"/>
+    <bean id="formService" factory-bean="processEngine"
+          factory-method="getFormService"/>
+    <bean id="identityService" factory-bean="processEngine"
+          factory-method="getIdentityService"/>
+    <!-- Activiti Configuration End -->
+
+    <!-- Spring Integration configuration -->
+
+    <int-jdbc:message-store id="store" data-source="dataSource"/>
+
+    <!-- Spring Integration configuration End -->
+</beans>

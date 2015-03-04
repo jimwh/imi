@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:tx="http://www.springframework.org/schema/tx"
+       xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+       xsi:schemaLocation="http://www.springframework.org/schema/context
+        http://www.springframework.org/schema/context/spring-context.xsd
+        http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans.xsd
+        http://www.springframework.org/schema/tx
+        http://www.springframework.org/schema/tx/spring-tx.xsd
+        http://www.springframework.org/schema/jdbc
+        http://www.springframework.org/schema/jdbc/spring-jdbc.xsd">
+
+<!--
+    <bean id="dataSource" class="oracle.ucp.jdbc.PoolDataSourceFactory"
+          factory-method="getPoolDataSource">
+        <property name="URL" value="${spring.datasource.url}" />
+        <property name="user" value="${spring.datasource.username}" />
+        <property name="password" value="${spring.datasource.password}" />
+
+        <property name="validateConnectionOnBorrow" value="true"/>
+
+        <property name="connectionFactoryClassName" value="oracle.jdbc.pool.OracleDataSource" />
+        <property name="connectionPoolName" value="TEST_POOL" />
+        <property name="minPoolSize" value="10" />
+        <property name="maxPoolSize" value="20" />
+        <property name="initialPoolSize" value="12" />
+    </bean>
+-->
+
+
+
+    <bean name="dataSource" class="oracle.jdbc.pool.OracleDataSource" destroy-method="close">
+        <property name="URL" value="${spring.datasource.url}" />
+        <property name="user" value="${spring.datasource.username}" />
+        <property name="password" value="${spring.datasource.password}" />
+        <property name="connectionCacheProperties">
+            <value>
+                MinLimit:1
+                MaxLimit:12
+                InitialLimit:1
+                ConnectionWaitTimeout:120
+                InactivityTimeout:180
+                ValidateConnection:true
+            </value>
+        </property>
+    </bean>
+
+
+    <bean id="transactionAwareDataSource" class="org.springframework.jdbc.datasource.TransactionAwareDataSourceProxy">
+        <property name="targetDataSource" ref="dataSource" />
+    </bean>
+
+
+    <!--
+    <bean id="lobHandler" class="org.springframework.jdbc.support.lob.OracleLobHandler" />
+    -->
+
+    <bean id="lobHandler" class="org.springframework.jdbc.support.lob.DefaultLobHandler" />
+
+</beans>

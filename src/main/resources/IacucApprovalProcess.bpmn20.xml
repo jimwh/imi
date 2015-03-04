@@ -1,0 +1,898 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:activiti="http://activiti.org/bpmn"
+             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+             targetNamespace="http://activiti.org/bpmn20">
+
+    <process id="IacucApprovalProcess" name="Review and Approve Protocol">
+        <extensionElements>
+            <activiti:executionListener event="start"
+                                        delegateExpression="${iacucListener}"/>
+        </extensionElements>
+
+        <startEvent id="theStart"/>
+        <exclusiveGateway id="startGateway" name="start gateway"/>
+
+        <userTask id="submit" name="Submit">
+            <extensionElements>
+                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+            </extensionElements>
+        </userTask>
+
+        <userTask id="addNote" name="Add Note" activiti:candidateGroups="IACUC_CAN_ADD_NOTE_PROTOCOL"/>
+        <userTask id="addCorrespondence" name="Add Correspondence" activiti:candidateGroups="IACUC_CAN_ADD_CORRESPONDENCE"/>
+        <userTask id="terminateProtocol" name="Terminate" activiti:candidateGroups="IACUC_CAN_TERMINATE_COLUMBIA_PROTOCOL"/>
+        <userTask id="suspendProtocol" name="Suspend" activiti:candidateGroups="IACUC_CAN_SUSPEND_COLUMBIA_PROTOCOL"/>
+        <userTask id="reinstatement" name="Reinstate" activiti:candidateGroups="IACUC_CAN_REINSTATE_COLUMBIA_PROTOCOL">
+            <documentation>Reinstate a suspended protocol</documentation>
+        </userTask>
+        <userTask id="withdrawal" name="Withdraw" activiti:candidateGroups="IACUC_CAN_WITHDRAW_COLUMBIA_PROTOCOL">
+            <documentation>Withdraw a protocol that had been returned to PI</documentation>
+        </userTask>
+        <userTask id="kaput" name="Kaput">
+            <documentation>Import old status</documentation>
+        </userTask>
+
+        <transaction id="TP">
+            <startEvent id="tpStart"/>
+            <endEvent id="tpEnd">
+                <cancelEventDefinition/>
+            </endEvent>
+
+            <userTask id="returnToPI" name="Return to PI" activiti:candidateGroups="IACUC_CAN_RETURN_TO_PI,IACUC_CAN_RETURN_COLUMBIA_PROTOCOL_TO_PI"/>
+
+            <!-- distributeToSub, distributeToDS -->
+            <transaction id="T1">
+                <startEvent id="t1start"/>
+                <parallelGateway id="t1Fork"/>
+                <userTask id="distributeToSub" name="Distribute: Subcommittee"
+                          activiti:candidateGroups="IACUC_CAN_DISTRIBUTE_SUB_COMMITTEE_PROTOCOL">
+                    <extensionElements>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <userTask id="distributeToDS" name="Distribute: Designated Reviewers"
+                          activiti:candidateGroups="IACUC_CAN_DISTRIBUTE_DE_REVIEWER_PROTOCOL">
+                    <extensionElements>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <exclusiveGateway id="t1Join"/>
+                <endEvent id="t1End">
+                    <cancelEventDefinition id="e1"/>
+                </endEvent>
+                <sequenceFlow sourceRef="t1start" targetRef="t1Fork"/>
+                <sequenceFlow sourceRef="t1Fork" targetRef="distributeToSub"/>
+                <sequenceFlow sourceRef="t1Fork" targetRef="distributeToDS"/>
+                <sequenceFlow sourceRef="distributeToSub" targetRef="t1Join"/>
+                <sequenceFlow sourceRef="distributeToDS" targetRef="t1Join"/>
+                <sequenceFlow sourceRef="t1Join" targetRef="t1End"/>
+            </transaction>
+            <boundaryEvent id="t1Cancelled" attachedToRef="T1">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+
+			<!--  use candidateUsers instead of assignee for candidate group query -->
+            <transaction id="T2">
+                <!-- define reviewer sub-process -->
+                <subProcess id="designatedReview" name="Designated Reviewers">
+                    <startEvent id="startSubProc"/>
+                    <endEvent id="endSubProc"/>
+
+                    <!-- define reviewers  -->
+                    <transaction id="rv1Transaction">
+                        <startEvent id="rv1Start"/>
+                        <endEvent id="rv1End">
+                            <cancelEventDefinition id="rv1"/>
+                        </endEvent>
+                        <parallelGateway id="rv1Fork"/>
+                        <exclusiveGateway id="rv1Join"/>
+
+                        <userTask id="rv1Approval" name="Designated Reviewer Approval"
+                                  activiti:candidateUsers="${rv1}"
+                                  activiti:candidateGroups="IACUC_CAN_REVIEW_APPROVE_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+                        
+                        <userTask id="rv1Hold" name="Designated Reviewer Hold" 
+                        			activiti:candidateUsers="${rv1}"
+                        			activiti:candidateGroups="IACUC_CAN_REVIEW_HOLD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+
+                        <userTask id="rv1ReqFullReview" name="Designated Reviewer Request Full Review"
+                                  activiti:candidateUsers="${rv1}"
+                                  activiti:candidateGroups="IACUC_CAN_REVIEW_FULL_BOARD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+
+                        <sequenceFlow sourceRef="rv1Start" targetRef="rv1Fork"/>
+                        <sequenceFlow sourceRef="rv1Fork" targetRef="rv1Approval"/>
+                        <sequenceFlow sourceRef="rv1Fork" targetRef="rv1Hold"/>
+                        <sequenceFlow sourceRef="rv1Fork" targetRef="rv1ReqFullReview"/>
+                        <sequenceFlow sourceRef="rv1Approval" targetRef="rv1Join"/>
+                        <sequenceFlow sourceRef="rv1Hold" targetRef="rv1Join"/>
+                        <sequenceFlow sourceRef="rv1ReqFullReview" targetRef="rv1Join"/>
+                        <sequenceFlow sourceRef="rv1Join" targetRef="rv1End"/>
+                    </transaction>
+                    <boundaryEvent id="rv1Cancelled" attachedToRef="rv1Transaction">
+                        <cancelEventDefinition/>
+                    </boundaryEvent>
+
+                    <transaction id="rv2Transaction">
+                        <startEvent id="rv2Start"/>
+                        <endEvent id="rv2End">
+                            <cancelEventDefinition/>
+                        </endEvent>
+                        <parallelGateway id="rv2Fork"/>
+                        <exclusiveGateway id="rv2Join"/>
+                        <userTask id="rv2Approval" name="Designated Reviewer Approval"
+                                  activiti:candidateUsers="${rv2}"
+                                  activiti:candidateGroups="IACUC_CAN_REVIEW_APPROVE_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+
+                        <userTask id="rv2Hold" name="Designated Reviewer Hold" 
+                        		activiti:candidateUsers="${rv2}"
+                        		activiti:candidateGroups="IACUC_CAN_REVIEW_HOLD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+
+                        <userTask id="rv2ReqFullReview" name="Designated Reviewer Request Full Review"
+                                  activiti:candidateUsers="${rv2}"
+                                  activiti:candidateGroups="IACUC_CAN_REVIEW_FULL_BOARD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+
+                        <sequenceFlow sourceRef="rv2Start" targetRef="rv2Fork"/>
+                        <sequenceFlow sourceRef="rv2Fork" targetRef="rv2Approval"/>
+                        <sequenceFlow sourceRef="rv2Fork" targetRef="rv2Hold"/>
+                        <sequenceFlow sourceRef="rv2Fork" targetRef="rv2ReqFullReview"/>
+                        <sequenceFlow sourceRef="rv2Approval" targetRef="rv2Join"/>
+                        <sequenceFlow sourceRef="rv2Hold" targetRef="rv2Join"/>
+                        <sequenceFlow sourceRef="rv2ReqFullReview" targetRef="rv2Join"/>
+                        <sequenceFlow sourceRef="rv2Join" targetRef="rv2End"/>
+                    </transaction>
+                    <boundaryEvent id="rv2Cancelled" attachedToRef="rv2Transaction">
+                        <cancelEventDefinition/>
+                    </boundaryEvent>
+
+                    <transaction id="rv3Transaction">
+                        <startEvent id="rv3Start"/>
+                        <endEvent id="rv3End">
+                            <cancelEventDefinition id="rv3"/>
+                        </endEvent>
+                        <parallelGateway id="rv3Fork"/>
+                        <exclusiveGateway id="rv3Join"/>
+                        <userTask id="rv3Approval" name="Designated Reviewer Approval"
+                                  activiti:candidateUsers="${rv3}"
+                                  activiti:candidateGroups="IACUC_CAN_REVIEW_APPROVE_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+
+                        <userTask id="rv3Hold" name="Designated Reviewer Hold (${rv3})" 
+                        		activiti:candidateUsers="${rv3}"
+                        		activiti:candidateGroups="IACUC_CAN_REVIEW_HOLD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+                        
+                        <userTask id="rv3ReqFullReview" name="Designated Reviewer Request Full Review"
+                                  activiti:candidateUsers="${rv3}"
+                                  activiti:candidateGroups="IACUC_CAN_REVIEW_FULL_BOARD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+                        
+                        <sequenceFlow sourceRef="rv3Start" targetRef="rv3Fork"/>
+                        <sequenceFlow sourceRef="rv3Fork" targetRef="rv3Approval"/>
+                        <sequenceFlow sourceRef="rv3Fork" targetRef="rv3Hold"/>
+                        <sequenceFlow sourceRef="rv3Fork" targetRef="rv3ReqFullReview"/>
+                        <sequenceFlow sourceRef="rv3Approval" targetRef="rv3Join"/>
+                        <sequenceFlow sourceRef="rv3Hold" targetRef="rv3Join"/>
+                        <sequenceFlow sourceRef="rv3ReqFullReview" targetRef="rv3Join"/>
+                        <sequenceFlow sourceRef="rv3Join" targetRef="rv3End"/>
+                    </transaction>
+                    <boundaryEvent id="rv3Cancelled" attachedToRef="rv3Transaction">
+                        <cancelEventDefinition/>
+                    </boundaryEvent>
+
+                    <transaction id="rv4Transaction">
+                        <startEvent id="rv4Start"/>
+                        <endEvent id="rv4End">
+                            <cancelEventDefinition/>
+                        </endEvent>
+                        <parallelGateway id="rv4Fork"/>
+                        <exclusiveGateway id="rv4Join"/>
+                        <userTask id="rv4Approval" name="Designated Reviewer Approval"
+                                  activiti:candidateUsers="${rv4}"
+                                  activiti:candidateGroups="IACUC_CAN_REVIEW_APPROVE_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+                        
+                        <userTask id="rv4Hold" name="Designated Reviewer Hold" 
+                        	activiti:candidateUsers="${rv4}"
+                        	activiti:candidateGroups="IACUC_CAN_REVIEW_HOLD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+                        
+                        <userTask id="rv4ReqFullReview" name="Designated Reviewer Request Full Review"
+                            activiti:candidateUsers="${rv4}"
+                            activiti:candidateGroups="IACUC_CAN_REVIEW_FULL_BOARD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+                        
+                        <sequenceFlow sourceRef="rv4Start" targetRef="rv4Fork"/>
+                        <sequenceFlow sourceRef="rv4Fork" targetRef="rv4Approval"/>
+                        <sequenceFlow sourceRef="rv4Fork" targetRef="rv4Hold"/>
+                        <sequenceFlow sourceRef="rv4Fork" targetRef="rv4ReqFullReview"/>
+                        <sequenceFlow sourceRef="rv4Approval" targetRef="rv4Join"/>
+                        <sequenceFlow sourceRef="rv4Hold" targetRef="rv4Join"/>
+                        <sequenceFlow sourceRef="rv4ReqFullReview" targetRef="rv4Join"/>
+                        <sequenceFlow sourceRef="rv4Join" targetRef="rv4End"/>
+                    </transaction>
+                    <boundaryEvent id="rv4Cancelled" attachedToRef="rv4Transaction">
+                        <cancelEventDefinition/>
+                    </boundaryEvent>
+
+
+                    <transaction id="rv5Transaction">
+                        <startEvent id="rv5Start"/>
+                        <endEvent id="rv5End">
+                            <cancelEventDefinition/>
+                        </endEvent>
+                        <parallelGateway id="rv5Fork"/>
+                        <exclusiveGateway id="rv5Join"/>
+                        <userTask id="rv5Approval" name="Designated Reviewer Approval"
+                                  activiti:candidateUsers="${rv5}"
+                                  activiti:candidateGroups="IACUC_CAN_REVIEW_APPROVE_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+
+                        <userTask id="rv5Hold" name="Designated Reviewer Hold" 
+                        		activiti:candidateUsers="${rv5}"
+                        		activiti:candidateGroups="IACUC_CAN_REVIEW_HOLD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+
+                        <userTask id="rv5ReqFullReview" name="Designated Reviewer Request Full Review"
+                                  activiti:candidateUsers="${rv5}"
+                                  activiti:candidateGroups="IACUC_CAN_REVIEW_FULL_BOARD_PROTOCOL">
+                            <extensionElements>
+                                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                            </extensionElements>
+                        </userTask>
+                        
+                        <sequenceFlow sourceRef="rv5Start" targetRef="rv5Fork"/>
+                        <sequenceFlow sourceRef="rv5Fork" targetRef="rv5Approval"/>
+                        <sequenceFlow sourceRef="rv5Fork" targetRef="rv5Hold"/>
+                        <sequenceFlow sourceRef="rv5Fork" targetRef="rv5ReqFullReview"/>
+                        <sequenceFlow sourceRef="rv5Approval" targetRef="rv5Join"/>
+                        <sequenceFlow sourceRef="rv5Hold" targetRef="rv5Join"/>
+                        <sequenceFlow sourceRef="rv5ReqFullReview" targetRef="rv5Join"/>
+                        <sequenceFlow sourceRef="rv5Join" targetRef="rv5End"/>
+                    </transaction>
+                    <boundaryEvent id="rv5Cancelled" attachedToRef="rv5Transaction">
+                        <cancelEventDefinition/>
+                    </boundaryEvent>
+
+
+                    <!-- end define reviewers -->
+
+                    <inclusiveGateway id="reviewerFork"/>
+                    <sequenceFlow sourceRef="startSubProc" targetRef="reviewerFork"/>
+
+                    <sequenceFlow sourceRef="reviewerFork" targetRef="rv1Transaction">
+                        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${rv1!=null}]]></conditionExpression>
+                    </sequenceFlow>
+                    <sequenceFlow sourceRef="reviewerFork" targetRef="rv2Transaction">
+                        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${rv2!=null}]]></conditionExpression>
+                    </sequenceFlow>
+                    <sequenceFlow sourceRef="reviewerFork" targetRef="rv3Transaction">
+                        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${rv3!=null}]]></conditionExpression>
+                    </sequenceFlow>
+                    <sequenceFlow sourceRef="reviewerFork" targetRef="rv4Transaction">
+                        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${rv4!=null}]]></conditionExpression>
+                    </sequenceFlow>
+                    <sequenceFlow sourceRef="reviewerFork" targetRef="rv5Transaction">
+                        <conditionExpression xsi:type="tFormalExpression"><![CDATA[${rv5!=null}]]></conditionExpression>
+                    </sequenceFlow>
+
+                    <inclusiveGateway id="reviewerJoin"/>
+
+                    <sequenceFlow sourceRef="rv1Transaction" targetRef="reviewerJoin"/>
+                    <sequenceFlow sourceRef="rv2Transaction" targetRef="reviewerJoin"/>
+                    <sequenceFlow sourceRef="rv3Transaction" targetRef="reviewerJoin"/>
+                    <sequenceFlow sourceRef="rv4Transaction" targetRef="reviewerJoin"/>
+                    <sequenceFlow sourceRef="rv5Transaction" targetRef="reviewerJoin"/>
+
+                    <sequenceFlow sourceRef="reviewerJoin" targetRef="endSubProc"/>
+                </subProcess>
+                <!-- end of designated reviewer subProcess -->
+
+                <userTask id="redistribute" name="Redistribute" activiti:candidateGroups="IACUC_CAN_RE_DISTRIBUTE_COLUMBIA_PROTOCOL">
+                    <extensionElements>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <startEvent id="t2Start"/>
+                <parallelGateway id="t2Fork"/>
+                <sequenceFlow sourceRef="t2Start" targetRef="t2Fork"/>
+                <sequenceFlow sourceRef="t2Fork" targetRef="designatedReview"/>
+                <sequenceFlow sourceRef="t2Fork" targetRef="redistribute"/>
+                <exclusiveGateway id="t2Join"/>
+                <sequenceFlow sourceRef="designatedReview" targetRef="t2Join"/>
+                <sequenceFlow sourceRef="redistribute" targetRef="t2Join"/>
+                <endEvent id="t2End">
+                    <cancelEventDefinition/>
+                </endEvent>
+                <sequenceFlow sourceRef="t2Join" targetRef="t2End"/>
+            </transaction>
+
+            <boundaryEvent id="t2Cancelled" attachedToRef="T2">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+            <!-- end of designated review sub-process and redistribute transaction sub-process -->
+
+
+            <userTask id="finalApproval" name="Approve" activiti:candidateGroups="IACUC_CAN_APPROVE_COLUMBIA_PROTOCOL">
+                <extensionElements>
+                    <activiti:taskListener event="create"
+                                           delegateExpression="${iacucListener}"/>
+                    <activiti:taskListener event="complete"
+                                           delegateExpression="${iacucListener}"/>
+                </extensionElements>
+            </userTask>
+
+
+            <transaction id="animalOrderOrUndoApproval">
+                <startEvent id="aouStart"/>
+                <endEvent id="aouEnd">
+                    <cancelEventDefinition/>
+                </endEvent>
+                <parallelGateway id="aouFork"/>
+                <exclusiveGateway id="aouJoin"/>
+                <userTask id="undoApproval" name="Undo Approval" activiti:candidateGroups="IACUC_CAN_UNDO_APPROVE_COLUMBIA_PROTOCOL">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+                
+                <userTask id="animalOrder" name="Animal Order">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+                <sequenceFlow sourceRef="aouStart" targetRef="aouFork"/>
+                <sequenceFlow sourceRef="aouFork" targetRef="animalOrder"/>
+                <sequenceFlow sourceRef="aouFork" targetRef="undoApproval"/>
+
+                <sequenceFlow sourceRef="animalOrder" targetRef="aouJoin"/>
+                <sequenceFlow sourceRef="undoApproval" targetRef="aouJoin"/>
+
+                <sequenceFlow sourceRef="aouJoin" targetRef="aouEnd"/>
+            </transaction>
+            <boundaryEvent id="aouCancelled" attachedToRef="animalOrderOrUndoApproval">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+
+            <!-- define appendices transactions -->
+            <transaction id="appendixATransaction">
+                <userTask id="soPreApproveA" name="Safety Office Pre-approve Appendix-A"
+                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_A">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+                <userTask id="soHoldA" name="Safety Office Hold Appendix-A"
+                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_A">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <startEvent id="appendixAStart"/>
+                <parallelGateway id="appendixAFork"/>
+                <sequenceFlow sourceRef="appendixAStart" targetRef="appendixAFork"/>
+
+                <sequenceFlow sourceRef="appendixAFork" targetRef="soPreApproveA"/>
+                <sequenceFlow sourceRef="appendixAFork" targetRef="soHoldA"/>
+
+                <exclusiveGateway id="appendixAJoin"/>
+                <sequenceFlow sourceRef="soPreApproveA" targetRef="appendixAJoin"/>
+                <sequenceFlow sourceRef="soHoldA" targetRef="appendixAJoin"/>
+
+                <sequenceFlow sourceRef="appendixAJoin" targetRef="appendixAEnd"/>
+                <endEvent id="appendixAEnd">
+                    <cancelEventDefinition/>
+                </endEvent>
+            </transaction>
+            <boundaryEvent id="appendixACancelled" attachedToRef="appendixATransaction">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+            <transaction id="appendixBTransaction">
+                <userTask id="soPreApproveB" name="Safety Office Pre-approve Appendix-B"
+                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_B">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+                <userTask id="soHoldB" name="Safety Office Hold Appendix-B"
+                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_B">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <startEvent id="appendixBStart"/>
+                <parallelGateway id="appendixBFork"/>
+                <sequenceFlow sourceRef="appendixBStart" targetRef="appendixBFork"/>
+
+                <sequenceFlow sourceRef="appendixBFork" targetRef="soPreApproveB"/>
+                <sequenceFlow sourceRef="appendixBFork" targetRef="soHoldB"/>
+
+                <exclusiveGateway id="appendixBJoin"/>
+                <sequenceFlow sourceRef="soPreApproveB" targetRef="appendixBJoin"/>
+                <sequenceFlow sourceRef="soHoldB" targetRef="appendixBJoin"/>
+
+                <sequenceFlow sourceRef="appendixBJoin" targetRef="appendixBEnd"/>
+                <endEvent id="appendixBEnd">
+                    <cancelEventDefinition/>
+                </endEvent>
+            </transaction>
+            <boundaryEvent id="appendixBCancelled" attachedToRef="appendixBTransaction">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+            <transaction id="appendixCTransaction">
+
+                <userTask id="soPreApproveC" name="Safety Office Pre-approve Appendix-C"
+                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_C">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <userTask id="soHoldC" name="Safety Office Hold Appendix-C"
+                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_C">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <startEvent id="appendixCStart"/>
+                <parallelGateway id="appendixCFork"/>
+                <sequenceFlow sourceRef="appendixCStart" targetRef="appendixCFork"/>
+
+                <sequenceFlow sourceRef="appendixCFork" targetRef="soPreApproveC"/>
+                <sequenceFlow sourceRef="appendixCFork" targetRef="soHoldC"/>
+
+                <exclusiveGateway id="appendixCJoin"/>
+                <sequenceFlow sourceRef="soPreApproveC" targetRef="appendixCJoin"/>
+                <sequenceFlow sourceRef="soHoldC" targetRef="appendixCJoin"/>
+
+                <sequenceFlow sourceRef="appendixCJoin" targetRef="appendixCEnd"/>
+                <endEvent id="appendixCEnd">
+                    <cancelEventDefinition/>
+                </endEvent>
+            </transaction>
+            <boundaryEvent id="appendixCCancelled" attachedToRef="appendixCTransaction">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+
+            <transaction id="appendixDTransaction">
+
+                <userTask id="soPreApproveD" name="Safety Office Pre-approve Appendix-D"
+                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_D">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+                
+                <userTask id="soHoldD" name="Safety Office Hold Appendix-D"
+                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_D">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <startEvent id="appendixDStart"/>
+                <parallelGateway id="appendixDFork"/>
+                <sequenceFlow sourceRef="appendixDStart" targetRef="appendixDFork"/>
+
+                <sequenceFlow sourceRef="appendixDFork" targetRef="soPreApproveD"/>
+                <sequenceFlow sourceRef="appendixDFork" targetRef="soHoldD"/>
+
+                <exclusiveGateway id="appendixDJoin"/>
+                <sequenceFlow sourceRef="soPreApproveD" targetRef="appendixDJoin"/>
+                <sequenceFlow sourceRef="soHoldD" targetRef="appendixDJoin"/>
+
+                <sequenceFlow sourceRef="appendixDJoin" targetRef="appendixDEnd"/>
+                <endEvent id="appendixDEnd">
+                    <cancelEventDefinition/>
+                </endEvent>
+            </transaction>
+            <boundaryEvent id="appendixDCancelled" attachedToRef="appendixDTransaction">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+            <transaction id="appendixETransaction">
+
+                <userTask id="soPreApproveE" name="Safety Office Pre-approve Appendix-E"
+                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_E">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+                
+                <userTask id="soHoldE" name="Safety Office Hold Appendix-E"
+                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_E">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <startEvent id="appendixEStart"/>
+                <parallelGateway id="appendixEFork"/>
+                <sequenceFlow sourceRef="appendixEStart" targetRef="appendixEFork"/>
+
+                <sequenceFlow sourceRef="appendixEFork" targetRef="soPreApproveE"/>
+                <sequenceFlow sourceRef="appendixEFork" targetRef="soHoldE"/>
+
+                <exclusiveGateway id="appendixEJoin"/>
+                <sequenceFlow sourceRef="soPreApproveE" targetRef="appendixEJoin"/>
+                <sequenceFlow sourceRef="soHoldE" targetRef="appendixEJoin"/>
+
+                <sequenceFlow sourceRef="appendixEJoin" targetRef="appendixEEnd"/>
+                <endEvent id="appendixEEnd">
+                    <cancelEventDefinition/>
+                </endEvent>
+            </transaction>
+            <boundaryEvent id="appendixECancelled" attachedToRef="appendixETransaction">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+            <transaction id="appendixFTransaction">
+
+                <userTask id="soPreApproveF" name="Safety Office Pre-approve Appendix-F"
+                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_F">
+                	<extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+                
+                <userTask id="soHoldF" name="Safety Office Hold Appendix-F"
+                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_F">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <startEvent id="appendixFStart"/>
+                <parallelGateway id="appendixFFork"/>
+                <sequenceFlow sourceRef="appendixFStart" targetRef="appendixFFork"/>
+
+                <sequenceFlow sourceRef="appendixFFork" targetRef="soPreApproveF"/>
+                <sequenceFlow sourceRef="appendixFFork" targetRef="soHoldF"/>
+
+                <exclusiveGateway id="appendixFJoin"/>
+                <sequenceFlow sourceRef="soPreApproveF" targetRef="appendixFJoin"/>
+                <sequenceFlow sourceRef="soHoldF" targetRef="appendixFJoin"/>
+
+                <sequenceFlow sourceRef="appendixFJoin" targetRef="appendixFEnd"/>
+                <endEvent id="appendixFEnd">
+                    <cancelEventDefinition/>
+                </endEvent>
+            </transaction>
+            <boundaryEvent id="appendixFCancelled" attachedToRef="appendixFTransaction">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+
+            <transaction id="appendixGTransaction">
+
+                <userTask id="soPreApproveG" name="Safety Office Pre-approve Appendix-G"
+                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_G">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+                
+                <userTask id="soHoldG" name="Safety Office Hold Appendix-G"
+                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_G">
+                     <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+                
+                <startEvent id="appendixGStart"/>
+                <parallelGateway id="appendixGFork"/>
+                <sequenceFlow sourceRef="appendixGStart" targetRef="appendixGFork"/>
+
+                <sequenceFlow sourceRef="appendixGFork" targetRef="soPreApproveG"/>
+                <sequenceFlow sourceRef="appendixGFork" targetRef="soHoldG"/>
+
+                <exclusiveGateway id="appendixGJoin"/>
+                <sequenceFlow sourceRef="soPreApproveG" targetRef="appendixGJoin"/>
+                <sequenceFlow sourceRef="soHoldG" targetRef="appendixGJoin"/>
+
+                <sequenceFlow sourceRef="appendixGJoin" targetRef="appendixGEnd"/>
+                <endEvent id="appendixGEnd">
+                    <cancelEventDefinition/>
+                </endEvent>
+            </transaction>
+            <boundaryEvent id="appendixGCancelled" attachedToRef="appendixGTransaction">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+            <transaction id="appendixITransaction">
+
+                <userTask id="soPreApproveI" name="Safety Office Pre-approve Appendix-I"
+                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_I">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <userTask id="soHoldI" name="Safety Office Hold Appendix-I"
+                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_I">
+                    <extensionElements>
+                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
+                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                    </extensionElements>
+                </userTask>
+
+                <startEvent id="appendixIStart"/>
+                <parallelGateway id="appendixIFork"/>
+
+                <sequenceFlow sourceRef="appendixIStart" targetRef="appendixIFork"/>
+
+                <sequenceFlow sourceRef="appendixIFork" targetRef="soPreApproveI"/>
+                <sequenceFlow sourceRef="appendixIFork" targetRef="soHoldI"/>
+
+                <exclusiveGateway id="appendixIJoin"/>
+                <sequenceFlow sourceRef="soPreApproveI" targetRef="appendixIJoin"/>
+                <sequenceFlow sourceRef="soHoldI" targetRef="appendixIJoin"/>
+
+                <sequenceFlow sourceRef="appendixIJoin" targetRef="appendixIEnd"/>
+                <endEvent id="appendixIEnd">
+                    <cancelEventDefinition/>
+                </endEvent>
+            </transaction>
+            <boundaryEvent id="appendixICancelled" attachedToRef="appendixITransaction">
+                <cancelEventDefinition/>
+            </boundaryEvent>
+
+            <!-- end appendix task definition -->
+            <inclusiveGateway id="appendixFork"/>
+
+            <sequenceFlow sourceRef="tpFork" targetRef="appendixFork"/>
+
+            <sequenceFlow sourceRef="appendixFork" targetRef="appendixATransaction">
+                <conditionExpression xsi:type="tFormalExpression">${hasAppendixA == true}</conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="appendixFork" targetRef="appendixBTransaction">
+                <conditionExpression xsi:type="tFormalExpression">${hasAppendixB == true}</conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="appendixFork" targetRef="appendixCTransaction">
+                <conditionExpression xsi:type="tFormalExpression">${hasAppendixC == true}</conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="appendixFork" targetRef="appendixDTransaction">
+                <conditionExpression xsi:type="tFormalExpression">${hasAppendixD == true}</conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="appendixFork" targetRef="appendixETransaction">
+                <conditionExpression xsi:type="tFormalExpression">${hasAppendixE == true}</conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="appendixFork" targetRef="appendixFTransaction">
+                <conditionExpression xsi:type="tFormalExpression">${hasAppendixF == true}</conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="appendixFork" targetRef="appendixGTransaction">
+                <conditionExpression xsi:type="tFormalExpression">${hasAppendixG == true}</conditionExpression>
+            </sequenceFlow>
+
+
+            <sequenceFlow sourceRef="appendixFork" targetRef="appendixITransaction">
+                <conditionExpression xsi:type="tFormalExpression">${hasAppendixI == true}</conditionExpression>
+            </sequenceFlow>
+
+            <inclusiveGateway id="appendixJoin"/>
+            <!-- <sequenceFlow sourceRef="TP" targetRef="appendixJoin"/> -->
+            <sequenceFlow sourceRef="appendixATransaction" targetRef="appendixJoin"/>
+            <sequenceFlow sourceRef="appendixBTransaction" targetRef="appendixJoin"/>
+            <sequenceFlow sourceRef="appendixCTransaction" targetRef="appendixJoin"/>
+            <sequenceFlow sourceRef="appendixDTransaction" targetRef="appendixJoin"/>
+            <sequenceFlow sourceRef="appendixETransaction" targetRef="appendixJoin"/>
+            <sequenceFlow sourceRef="appendixFTransaction" targetRef="appendixJoin"/>
+            <sequenceFlow sourceRef="appendixGTransaction" targetRef="appendixJoin"/>
+            <sequenceFlow sourceRef="appendixITransaction" targetRef="appendixJoin"/>
+            <!--
+            <sequenceFlow sourceRef="appendixJoin" targetRef="tpJoin"/>
+            -->
+
+            <inclusiveGateway id="tpFork"/>
+            <exclusiveGateway id="tpJoin"/>
+
+            <sequenceFlow sourceRef="tpStart" targetRef="tpFork"/>
+            <sequenceFlow sourceRef="tpFork" targetRef="returnToPI"/>
+            <sequenceFlow sourceRef="tpFork" targetRef="fooFork"/>
+
+            <inclusiveGateway id="fooFork"/>
+            <sequenceFlow sourceRef="fooFork" targetRef="man"/>
+            <manualTask id="man"/>
+            <sequenceFlow sourceRef="man" targetRef="T1"/>
+            <sequenceFlow sourceRef="fooFork" targetRef="appendixFork">
+                <conditionExpression xsi:type="tFormalExpression">${hasAppendix == true}</conditionExpression>
+            </sequenceFlow>
+
+
+            <!-- 1st transaction sub-process output -->
+            <exclusiveGateway id="t1out"/>
+            <sequenceFlow sourceRef="T1" targetRef="t1out"/>
+            <sequenceFlow sourceRef="t1out" targetRef="stop">
+                <conditionExpression xsi:type="tFormalExpression"><![CDATA[${T1_OUT == 1}]]></conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="t1out" targetRef="T2">
+                <conditionExpression xsi:type="tFormalExpression"><![CDATA[${T1_OUT == 2}]]></conditionExpression>
+            </sequenceFlow>
+
+            <!--
+            <exclusiveGateway id="foo"/>
+            <sequenceFlow sourceRef="designatedReview" targetRef="foo"/>
+            -->
+
+            <sequenceFlow sourceRef="T2" targetRef="fooJoin">
+                <conditionExpression xsi:type="tFormalExpression">${allRvs==true}
+                </conditionExpression>
+            </sequenceFlow>
+
+            <inclusiveGateway id="fooJoin"/>
+
+            <!-- <sequenceFlow sourceRef="appendixJoin" targetRef="fooJoin"/> -->
+            <sequenceFlow sourceRef="appendixJoin" targetRef="stop"/>
+
+            <sequenceFlow sourceRef="fooJoin" targetRef="finalApproval">
+                <conditionExpression xsi:type="tFormalExpression">
+                    ${redistribute==false and allRvs==true and allAppendicesApproved==true }
+                </conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="fooJoin" targetRef="stop">
+                <conditionExpression xsi:type="tFormalExpression">${allRvs==true and allAppendicesApproved==false}
+                </conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="fooJoin" targetRef="man">
+                <conditionExpression xsi:type="tFormalExpression">${redistribute==true}
+                </conditionExpression>
+            </sequenceFlow>
+
+            <manualTask id="stop" name="it is a stop point for return-2-pi"/>
+            <sequenceFlow sourceRef="T2" targetRef="stop">
+                <conditionExpression xsi:type="tFormalExpression">${allRvs==false and redistribute==false}
+                </conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="finalApproval" targetRef="animalOrderOrUndoApproval"/>
+            <sequenceFlow sourceRef="animalOrderOrUndoApproval" targetRef="finalApproval">
+                <conditionExpression xsi:type="tFormalExpression">${undoApproval==true}
+                </conditionExpression>
+            </sequenceFlow>
+            <sequenceFlow sourceRef="animalOrderOrUndoApproval" targetRef="tpJoin">
+                <conditionExpression xsi:type="tFormalExpression">${undoApproval==false}
+                </conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="returnToPI" targetRef="tpJoin"/>
+
+            <sequenceFlow sourceRef="tpJoin" targetRef="tpEnd"/>
+
+        </transaction>
+        <boundaryEvent id="tpCancelled" attachedToRef="TP">
+            <cancelEventDefinition/>
+        </boundaryEvent>
+        <!-- end define TP transaction -->
+
+
+        <endEvent id="thEnd"/>
+
+        <sequenceFlow sourceRef="theStart" targetRef="startGateway"/>
+
+        <sequenceFlow sourceRef="startGateway" targetRef="submit">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 1}]]></conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow sourceRef="startGateway" targetRef="terminateProtocol">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 3}]]></conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow sourceRef="startGateway" targetRef="suspendProtocol">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 4}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow sourceRef="startGateway" targetRef="withdrawal">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 5}]]></conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow sourceRef="startGateway" targetRef="addCorrespondence">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 6}]]></conditionExpression>
+        </sequenceFlow>
+        <sequenceFlow sourceRef="startGateway" targetRef="reinstatement">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 7}]]></conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow sourceRef="startGateway" targetRef="kaput">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 8}]]></conditionExpression>
+        </sequenceFlow>
+
+        <sequenceFlow sourceRef="startGateway" targetRef="addNote">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 10}]]></conditionExpression>
+        </sequenceFlow>
+
+
+        <sequenceFlow sourceRef="submit" targetRef="TP"/>
+        <sequenceFlow sourceRef="addCorrespondence" targetRef="thEnd"/>
+        <sequenceFlow sourceRef="terminateProtocol" targetRef="thEnd"/>
+        <sequenceFlow sourceRef="suspendProtocol" targetRef="thEnd"/>
+        <sequenceFlow sourceRef="addNote" targetRef="thEnd"/>
+
+
+    </process>
+
+</definitions>
