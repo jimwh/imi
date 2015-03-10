@@ -220,24 +220,8 @@ public class Foo {
             }
             if(list.isEmpty()) continue;
             migrator.importKaput(list);
-            // dispatch(list);
         }
     }
-
-    /*
-    private void shutdownExcutor() {
-        executor.shutdown();
-    }
-    private void dispatch(List<OldStatus> list) {
-        //for(OldStatus s: list) { log.info("before dispatch: " + s); }
-        Runnable worker = new KaputWorker(migrator, list);
-        executor.execute(worker);
-    }
-    private void dispatch(CorrRcd corrRcd) {
-        Runnable worker = new CorrWorker(migrator, corrRcd);
-        executor.execute(worker);
-    }
-    */
 
     private void updateMigrationTables() {
         try {
