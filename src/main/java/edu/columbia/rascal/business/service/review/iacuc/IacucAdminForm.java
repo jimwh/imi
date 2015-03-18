@@ -1,5 +1,7 @@
 package edu.columbia.rascal.business.service.review.iacuc;
 
+import org.joda.time.DateTime;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -38,6 +40,15 @@ public class IacucAdminForm {
         return approvalDate;
     }
 
+    public String getApprovalDateString() {
+        return getDateString(approvalDate);
+    }
+
+    private String getDateString(Date date) {
+        if (date == null) return "";
+        DateTime dateTime = new DateTime(date);
+        return dateTime.toString("MM/dd/YYYY");
+    }
     public void setApprovalDate(Date approvalDate) {
         this.approvalDate = approvalDate;
     }
@@ -46,6 +57,9 @@ public class IacucAdminForm {
         return effectiveDate;
     }
 
+    public String getEffectiveDateString() {
+        return getDateString(effectiveDate);
+    }
     public void setEffectiveDate(Date effectiveDate) {
         this.effectiveDate = effectiveDate;
     }
@@ -54,6 +68,9 @@ public class IacucAdminForm {
         return endDate;
     }
 
+    public String getEndDateString() {
+        return getDateString(endDate);
+    }
     public void setEndDate(Date endDate) {
         this.endDate = endDate;
     }

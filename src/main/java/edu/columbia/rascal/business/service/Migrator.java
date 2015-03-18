@@ -123,54 +123,11 @@ public class Migrator {
         for (int i = 0; i < size; i++) {
             OldStatus status = list.get(i);
 
-            if (i + 1 < size) {
-                String nextCode = list.get(i + 1).statusCode;
-                if (status.statusCode.equals(nextCode) && !PassSet.contains(nextCode)) {
-                    continue;
-                } else if (!VerifySet.contains(nextCode) && !PassSet.contains(nextCode)) {
-                    continue;
-                }
-                // this is Approve followed by Done
-                if ("Approve".equals(status.statusCode) && "Done".equals(nextCode)) {
-                    OldStatus doneStatus = list.get(i + 1);
-                    i += 1;
-                    if ( !doApproval(status, doneStatus) ) {
-                        log.error("cannot doApproval(status, doneStatus): " + status + ": " + doneStatus);
-                    }
-                    continue;
-                }
-            }
-            //
             if (IacucStatus.Submit.isStatus(status.statusCode)) {
                 submitProtocol(status);
             }
             else if ("Distribute".equals(status.statusCode)) {
                 // ugly case distribution for approval
-                if (i + 1 < size) {
-                    String nextCode = list.get(i + 1).statusCode;
-                    if (IacucStatus.FinalApproval.isStatus(nextCode)) {
-                        // do distribution for approval
-                        // log.info("do distribution for approval...");
-                        if( !doDistributionGoApproval(status) ) {
-                         log.error("err in doDistributionGoApproval:" + status);
-                        }
-                    }else if( IacucStatus.ReturnToPI.isStatus(nextCode)) {
-                        // log.info("do distribution for return-to-pi...");
-                        if( !doDistributionGoReturnToPi(status) ) {
-                            log.error("err in doDistributionGoReturnToPi:" + status);
-                        }
-                    }else {
-                        //log.info("do regular distribution ...");
-                        if( !doDistribution(status) ) {
-                            log.error("err in doDistribution:" + status);
-                        }
-                    }
-                } else {
-                    //log.info("do regular distribution ...");
-                    if( !doDistribution(status) ) {
-                        log.error("err in doDistribution:" + status);
-                    }
-                }
             }
             else if (IacucStatus.ReturnToPI.isStatus(status.statusCode)) {
                 if(!doReturnToPi(status)) {
@@ -208,9 +165,7 @@ public class Migrator {
                 }
             }
             else if (IacucStatus.FinalApproval.isStatus(status.statusCode)) {
-                if( !doApprovalWithoutDone(status) ) {
                     log.error("err in doApprovalWithoutDone: "+status);
-                }
             }
         }
     }

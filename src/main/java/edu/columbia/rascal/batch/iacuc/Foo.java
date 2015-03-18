@@ -47,9 +47,8 @@ public class Foo {
             " where s.STATUSSETBY=u.RID" +
             " and s.IACUCPROTOCOLHEADERPER_OID=?" +
             " and s.STATUSCODE not in ('Create', 'Release', 'UnRelease', 'Notify', 'Reject', 'PreApprove', " +
-            " 'ChgApprovalDate','ChgEffectivDate','ChgEndDate','ChgMeetingDate','FullReviewReq'," +
-            " 'HazardsApprove','SOPreApproveA','SOPreApproveB','SOPreApproveC','SOPreApproveD','SOPreApproveE','SOPreApproveF','SOPreApproveG','SOPreApproveI'," +
-            " 'SOHoldA','SOHoldB','SOHoldC','SOHoldD','SOHoldE','SOHoldF','SOHoldG','SOHoldI'," +
+            " 'ChgApprovalDate','ChgEffectivDate','ChgEndDate','ChgMeetingDate'," +
+            " 'HazardsApprove'," +
             " 'VetPreApproveB', 'VetPreApproveC','VetPreApproveE','VetPreApproveF','VetHoldB','VetHoldC','VetHoldE','VetHoldF') " +
             " and s.OID=n.IACUCPROTOCOLSTATUSID(+)" +
             " and s.OID not in (select STATUSID_ from IACUC_MIGRATOR where s.OID=to_number(STATUSID_) )" +
@@ -64,12 +63,12 @@ public class Foo {
             " and s.OID not in (select STATUSID_ from IACUC_MIGRATOR where s.OID=to_number(STATUSID_))" +
             " order by STATUSCODEDATE";
 
-    private static final String SQL_KAPUT_STATUS_2="select OID, STATUSCODE, STATUSCODEDATE, USER_ID, IACUCPROTOCOLHEADERPER_OID, STATUSNOTES, NOTIFICATIONOID, ID" +
+    private static final String SQL_KAPUT_STATUS_2 = "select OID, STATUSCODE, STATUSCODEDATE, USER_ID, IACUCPROTOCOLHEADERPER_OID, STATUSNOTES, NOTIFICATIONOID, ID" +
             " from IacucProtocolStatus s, RASCAL_USER u, IACUCPROTOCOLSNAPSHOT n" +
-            " where s.STATUSSETBY=u.RID"+
+            " where s.STATUSSETBY=u.RID" +
             " and s.IACUCPROTOCOLHEADERPER_OID=?" +
             " and s.STATUSCODE not in ('Create', 'Submit', 'Distribute', 'ReturnToPI', 'Approve', 'Done'," +
-            " 'Suspend','Terminate','Withdraw','Reinstate', 'ACCMemberHold', 'ACCMemberApprov') "+
+            " 'Suspend','Terminate','Withdraw','Reinstate', 'ACCMemberHold', 'ACCMemberApprov') " +
             " and s.OID=n.IACUCPROTOCOLSTATUSID(+)" +
             " and s.OID not in (select STATUSID_ from IACUC_MIGRATOR where s.OID=to_number(STATUSID_))" +
             " order by STATUSCODEDATE";
@@ -77,9 +76,9 @@ public class Foo {
     private static final String SQL_PROTOCOL_ID = "select distinct IACUCPROTOCOLHEADERPER_OID" +
             " from IACUCPROTOCOLSTATUS where STATUSCODE <> 'Create' order by IACUCPROTOCOLHEADERPER_OID";
 
-    private static final String SQL_POID ="select distinct IACUCPROTOCOLHEADERPER_OID"+
-            " from IACUCPROTOCOLSTATUS s"+
-            " where EXISTS (select 1 from IACUC_IMI imi where s.OID= to_number(imi.statusid_) )"+
+    private static final String SQL_POID = "select distinct IACUCPROTOCOLHEADERPER_OID" +
+            " from IACUCPROTOCOLSTATUS s" +
+            " where EXISTS (select 1 from IACUC_IMI imi where s.OID= to_number(imi.statusid_) )" +
             " order by IACUCPROTOCOLHEADERPER_OID";
 
     private static final String SQL_ALLCORR = "select OID, IACUCPROTOCOLHEADERPER_OID protocolId, USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
@@ -88,6 +87,7 @@ public class Foo {
     private static final Logger log = LoggerFactory.getLogger(Foo.class);
 
     private static final Set<String> EndSet = new HashSet<String>();
+
     static {
         EndSet.add("Withdraw");
         EndSet.add("ReturnToPI");
@@ -112,18 +112,18 @@ public class Foo {
         //List<AttachedAppendix> list = migrator.getAttachedAppendix("5050");
         List<AttachedAppendix> list = migrator.getAttachedAppendix("0000");
         log.info("get appendix info...");
-        for(AttachedAppendix a: list) {
+        for (AttachedAppendix a : list) {
             log.info("appendixType={},approveType={}, approvalDate={}", a.appendixType, a.approvalType, a.approvalDate);
         }
         log.info("done...");
     }
 
     public void startMigration() {
-       log.info("start up test...");
+        log.info("start up test...");
         migrator.abortProcess("92300", "testing");
         //
         setupTables();
-        List<String> plist=new ArrayList<String>();
+        List<String> plist = new ArrayList<String>();
         // plist.add("90909");
         // plist.add("2967");
         // plist.add("2975");
@@ -144,14 +144,13 @@ public class Foo {
     public void startup() {
         log.info("phase 1 set up tables ...");
         setupTables();
-        //
         updateMigrationTables();
         //
         List<String> listProtocolId = getListProtocolId(SQL_PROTOCOL_ID);
-        log.info("phase 2 import kaput for "+listProtocolId.size() + " protocols");
-        List<String> list=new ArrayList<String>();
-        for(int i=16000; i<listProtocolId.size(); i++) {
-            list.add( listProtocolId.get(i));
+        log.info("phase 2 import kaput for " + listProtocolId.size() + " protocols");
+        List<String> list = new ArrayList<String>();
+        for (int i = 16000; i < listProtocolId.size(); i++) {
+            list.add(listProtocolId.get(i));
         }
         //phase2(listProtocolId);
         phase2(list);
@@ -170,10 +169,9 @@ public class Foo {
 
     private void importCorr() {
         List<CorrRcd> corrList = getAllCorr();
-        log.info("corrList.size="+corrList.size());
+        log.info("corrList.size=" + corrList.size());
         for (CorrRcd corr : corrList) {
             migrator.importCorrRcd(corr);
-            // dispatch(corr);
         }
     }
 
@@ -191,35 +189,38 @@ public class Foo {
         }
     }
 
+
+    // It may be mixed with finished or unfinished records.
+    // Remove unfinished records and insert them into IMI table.
+    // Import finished records as kaput status
     private void phase2(List<String> listProtocolId) {
         for (String protocolId : listProtocolId) {
             List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
-            if(list==null) continue;
-            if(list.isEmpty()) continue;
+            if (list == null || list.isEmpty()) continue;
+            // last element is in the EndSet
+            // which means these status had been done already
+            int lastIndex = list.size() - 1;
+            if (EndSet.contains(list.get(lastIndex))) {
+                migrator.importKaput(list);
+                continue;
+            }
 
-            if (!EndSet.contains(list.get(list.size() - 1).statusCode) && list.size() != 1) {
-                int last2ndIndex=list.size() - 2;
-                if(last2ndIndex>0) {
-                    if("Done".equals(list.get(last2ndIndex).statusCode) ) {
-                        migrator.importKaput(list);
-                        continue;
-                    }
-                }
-                while (true) {
-                    int index=list.size()-1;
-                    if(index < 0) break;
-                    if ("Submit".equals(list.get(index).statusCode)) {
-                        OldStatus rcd=list.remove(index);
-                        // save protocolId and statusId for next round
-                        migrator.insertToImiTable(rcd.protocolId,rcd.statusId);
-                        break;
-                    } else {
-                        list.remove(index);
-                    }
+            // move from bottom up to Submit status
+            while (true) {
+                int index = list.size() - 1;
+                if (index < 0) break;
+                if ("Submit".equals(list.get(index).statusCode)) {
+                    OldStatus rcd = list.remove(index);
+                    // save protocolId and statusId for next round
+                    migrator.insertToImiTable(rcd.protocolId, rcd.statusId);
+                    break;
+                } else {
+                    list.remove(index);
                 }
             }
-            if(list.isEmpty()) continue;
-            migrator.importKaput(list);
+            if ( !list.isEmpty() ) {
+                migrator.importKaput(list);
+            }
         }
     }
 
@@ -227,7 +228,7 @@ public class Foo {
         try {
             jdbcTemplate.execute(SQL_UPDATE_MIGRATOR);
             jdbcTemplate.execute(SQL_UPDATE_CORR);
-        }catch (Exception e) {
+        } catch (Exception e) {
             log.error("err in update table:", e);
         }
     }
@@ -267,6 +268,7 @@ public class Foo {
         int one = jdbcTemplate.queryForObject(SQL_TABLE_MIGRATOR, Integer.class);
         return one == 1;
     }
+
     private boolean hasCorrTable() {
         int one = jdbcTemplate.queryForObject(SQL_TABLE_CORR, Integer.class);
         return one == 1;
@@ -277,10 +279,14 @@ public class Foo {
         return one == 1;
     }
 
-    private void createMigratorTable() { jdbcTemplate.execute(SQL_CREATE_MIGRATOR); }
+    private void createMigratorTable() {
+        jdbcTemplate.execute(SQL_CREATE_MIGRATOR);
+    }
+
     private void createCorrTable() {
         jdbcTemplate.execute(SQL_CREATE_CORR);
     }
+
     private void createImiTable() {
         jdbcTemplate.execute(SQL_CREATE_IMI);
     }
@@ -318,7 +324,7 @@ public class Foo {
             log.info("creating corr table ...");
             createCorrTable();
         }
-        if( !hasImiTable()) {
+        if (!hasImiTable()) {
             log.info("creating imi table ...");
             createImiTable();
         }

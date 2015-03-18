@@ -14,6 +14,10 @@ import java.util.Map;
 
 public class IacucCorrespondence {
 
+    public void setCreationDate(Date creationDate){
+        this.creationDate=creationDate;
+    }
+
     private String id;
     private String from;
     private String recipient;
@@ -71,12 +75,6 @@ public class IacucCorrespondence {
         }
     }
 
-    public void setCreationDate(Date date) {
-        this.creationDate=date;
-        if(date!=null) {
-            id = String.valueOf(creationDate.getTime());
-        }
-    }
     public void setFromFirstLastNameUni(String flu) {
         fromFirstLastNameUni = flu;
     }

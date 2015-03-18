@@ -28,10 +28,11 @@ public class IacucDistributeReviewerForm extends IacucTaskForm {
             suffix += 1;
             map.put("rv"+suffix, rv);
         }
-
+        /*
         for(Map.Entry<String,Object>me: map.entrySet()) {
             log.info("key={}, value={}", me.getKey(),me.getValue());
         }
+        */
         return map;
     }
 

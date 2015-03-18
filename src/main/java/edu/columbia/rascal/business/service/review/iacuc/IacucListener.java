@@ -1,5 +1,6 @@
 package edu.columbia.rascal.business.service.review.iacuc;
 
+
 import org.activiti.engine.ActivitiIllegalArgumentException;
 import org.activiti.engine.delegate.DelegateExecution;
 import org.activiti.engine.delegate.DelegateTask;
@@ -9,6 +10,8 @@ import org.activiti.engine.impl.persistence.entity.ExecutionEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Resource;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -109,12 +112,20 @@ public class IacucListener implements TaskListener, ExecutionListener {
      */
     @Override
     public void notify(DelegateTask delegateTask) {
-
+    	
+    	if( !delegateTask.getProcessDefinitionId().contains("IacucApprovalProcess")) {
+    		return;
+    	}
+    	
         String eventName = delegateTask.getEventName();
         if (EVENTNAME_CREATE.equals(eventName)) {
             onCreate(delegateTask);
         } else if (EVENTNAME_COMPLETE.equals(eventName)) {
-            onComplete(delegateTask);
+            try {
+                onComplete(delegateTask);
+            } catch (Exception e) {
+                throw new ActivitiIllegalArgumentException(e.getMessage());
+            }
         }
     }
 
@@ -129,34 +140,51 @@ public class IacucListener implements TaskListener, ExecutionListener {
     }
 
     private void onComplete(DelegateTask delegateTask) {
+
         DelegateExecution taskExecution = delegateTask.getExecution();
+        String bizKey = taskExecution.getProcessBusinessKey();
         String taskDefKey = delegateTask.getTaskDefinitionKey();
+
+        /*
+        don't use it in data migration!!!
+        if (!IacucStatus.FinalApproval.isDefKey(taskDefKey)) {
+            // header service may be null during unit test
+            if (headerService != null)
+                headerService.attachSnapshot(bizKey, taskDefKey);
+        }
+        */
 
         if (IacucStatus.DistributeReviewer.isDefKey(taskDefKey)) {
             taskExecution.setVariable("hasReviewer", true);
             taskExecution.setVariable(CanRedistribute, true);
         } else if (IacucStatus.Redistribute.isDefKey(taskDefKey)) {
             if (!(Boolean) taskExecution.getVariable(CanRedistribute)) {
-                //enforce you don't get this task
+                // enforce you can't complete this task
                 throw new ActivitiIllegalArgumentException("Illegal action.");
             }
             taskExecution.setVariable(Redistribute, true);
-        } else if (UndoMap.get(taskDefKey) != null) {
-            taskExecution.setVariable(UndoApproval, UndoMap.get(taskDefKey));
-        } else if (RvHoldOrReqFullRvSet.contains(taskDefKey)) {
+        } 
+        else if (UndoMap.get(taskDefKey) != null) {
+            // do nothing if user action
+            if( taskExecution.getVariable("userClosed")==null) {
+        		taskExecution.setVariable(UndoApproval, UndoMap.get(taskDefKey));
+        	}
+        } 
+        else if (RvHoldOrReqFullRvSet.contains(taskDefKey)) {
             taskExecution.setVariable(AllRvs, false);
             taskExecution.setVariable(CanRedistribute, false);
+            taskExecution.setVariable(Redistribute, false);
         } else if (RvApprovalCannotDistributeSet.contains(taskDefKey)) {
             taskExecution.setVariable(CanRedistribute, false);
+            taskExecution.setVariable(Redistribute, false);
         } else if (SoApproveMap.get(taskDefKey) != null) {
             taskExecution.setVariable(SoApproveMap.get(taskDefKey), true);
             updateAppendixApproveStatus(delegateTask);
         } else if (SoHoldSet.contains(taskDefKey)) {
             taskExecution.setVariable(AllAppendicesApproved, false);
         }
-
-
     }
+
 
     private void updateAppendixApproveStatus(DelegateTask delegateTask) {
 
@@ -193,6 +221,17 @@ public class IacucListener implements TaskListener, ExecutionListener {
      */
     @Override
     public void notify(DelegateExecution delegateExecution) throws Exception {
+    	if( !delegateExecution.getProcessDefinitionId().contains("IacucApprovalProcess")) {
+    		return;
+    	}
+        String eventName = delegateExecution.getEventName();
+        if (EVENTNAME_START.equals(eventName)) {
+            onStart(delegateExecution);
+        }
+    }
+
+    // on process start
+    private void onStart(DelegateExecution delegateExecution) throws Exception {
 
         ExecutionEntity thisEntity = (ExecutionEntity) delegateExecution;
         ExecutionEntity superExecEntity = thisEntity.getSuperExecution();
@@ -200,7 +239,6 @@ public class IacucListener implements TaskListener, ExecutionListener {
 
         if (superExecEntity == null) {
             setUpAppendixApproveStatus(delegateExecution);
-
             // get the business key of the main process
             log.info("main process: eventName={}, bizKey={}, procDefId={}", eventName, thisEntity.getBusinessKey(), thisEntity.getProcessDefinitionId());
             // used by designatedReviews output
@@ -211,15 +249,11 @@ public class IacucListener implements TaskListener, ExecutionListener {
             // in a sub-process so get the BusinessKey variable set by the caller.
             String key = (String) superExecEntity.getVariable("BusinessKey");
             boolean hasAppendix = (Boolean) superExecEntity.getVariable("hasAppendix");
-
             log.info("sub-process: eventName={}, bizKey={}, procDefId={}, hasAppendix={}",
                     eventName, key, thisEntity.getProcessDefinitionId(), hasAppendix);
-
             thisEntity.setVariable("BusinessKey", key);
-
             // for get task by business key
             thisEntity.setBusinessKey(key);
-
         }
     }
 
@@ -308,6 +342,6 @@ public class IacucListener implements TaskListener, ExecutionListener {
 
         exe.setVariable(AllAppendicesApproved, bool);
         exe.setVariable("hasAppendix", !bool);
-
+        log.info("{}={}", AllAppendicesApproved, bool);
     }
 }
