@@ -13,6 +13,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
+/**
+ *   Deque<String> deque=new LinkedList<String>();
+ *   deque.addFirst(list.get(i));
+ *   for(String str: deque) {}
+ *   */
 @Component
 public class Foo {
 
@@ -206,13 +211,16 @@ public class Foo {
             }
 
             // move from bottom up to Submit status
+            Deque<OldStatus> deque=new LinkedList<OldStatus>();
+
             while (true) {
                 int index = list.size() - 1;
                 if (index < 0) break;
                 if ("Submit".equals(list.get(index).statusCode)) {
                     OldStatus rcd = list.remove(index);
+                    deque.addFirst(rcd);
                     // save protocolId and statusId for next round
-                    migrator.insertToImiTable(rcd.protocolId, rcd.statusId);
+                    //migrator.insertToImiTable(rcd.protocolId, rcd.statusId);
                     break;
                 } else {
                     list.remove(index);
@@ -220,6 +228,9 @@ public class Foo {
             }
             if ( !list.isEmpty() ) {
                 migrator.importKaput(list);
+            }
+            if ( !deque.isEmpty() ) {
+                migrator.migrateReviewInProgress(deque);
             }
         }
     }

@@ -5,9 +5,7 @@ import edu.columbia.rascal.batch.iacuc.CorrRcd;
 import edu.columbia.rascal.batch.iacuc.OldStatus;
 import edu.columbia.rascal.batch.iacuc.ReviewRcd;
 
-import edu.columbia.rascal.business.service.review.iacuc.IacucCorrespondence;
-import edu.columbia.rascal.business.service.review.iacuc.IacucStatus;
-import edu.columbia.rascal.business.service.review.iacuc.IacucTaskForm;
+import edu.columbia.rascal.business.service.review.iacuc.*;
 import org.activiti.engine.ManagementService;
 import org.activiti.engine.impl.cmd.AbstractCustomSqlExecution;
 import org.activiti.engine.impl.cmd.CustomSqlExecution;
@@ -29,6 +27,10 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
+
+/**
+ * kaput the status should cover ALL names in the view history page
+ */
 @Service
 public class Migrator {
 
@@ -49,8 +51,8 @@ public class Migrator {
             "(select user_id from Rascal_User where RID=REVIEWER3) C," +
             "MEETINGDATE from IacucProtocolReview where IACUCPROTOCOLSTATUSPER_OID=?";
     //
-    private static final String SQL_APPENDIX="select APPENDIXTYPE, APPROVALTYPE, APPROVALDATE " +
-            "from APPENDIXAPPROVAL a, APPENDIXTRACKING t "+
+    private static final String SQL_APPENDIX = "select APPENDIXTYPE, APPROVALTYPE, APPROVALDATE " +
+            "from APPENDIXAPPROVAL a, APPENDIXTRACKING t " +
             "where a.FK_TRACKING_ID=t.OID and t.OWNERTYPE='IacucProtocolHeader'" +
             "and t.OWNEROID=?";
 
@@ -102,8 +104,8 @@ public class Migrator {
 
     public void importKaput(List<OldStatus> kaputList) {
         for (OldStatus status : kaputList) {
-            if( !importKaputStatus(status) ) {
-                log.error("err in importKaput: "+status);
+            if (!importKaputStatus(status)) {
+                log.error("err in importKaput: " + status);
             }
         }
     }
@@ -111,144 +113,425 @@ public class Migrator {
     private void insertToMigratorTable(String taskId, String statusId, Date date) {
         this.jdbcTemplate.update(SQL_INSERT_MIGRATOR, taskId, statusId, date);
     }
+
     private void insertToCorrTable(String taskId, String statusId, Date date) {
         this.jdbcTemplate.update(SQL_INSERT_CORR, taskId, statusId, date);
     }
+
     public void insertToImiTable(String protocolId, String statusId) {
         this.jdbcTemplate.update(SQL_INSERT_IMI, protocolId, statusId);
     }
 
     public void migration(List<OldStatus> list) {
-        int size = list.size();
-        for (int i = 0; i < size; i++) {
-            OldStatus status = list.get(i);
-
-            if (IacucStatus.Submit.isStatus(status.statusCode)) {
-                submitProtocol(status);
-            }
-            else if ("Distribute".equals(status.statusCode)) {
-                // ugly case distribution for approval
-            }
-            else if (IacucStatus.ReturnToPI.isStatus(status.statusCode)) {
-                if(!doReturnToPi(status)) {
-                 log.error("err in doReturnToPi: "+status);
-                }
-            }
-            else if ("ACCMemberHold".equals(status.statusCode)) {
-                if( !completeAssigneeHoldReview(status) ) {
-                    log.error("err in completeAssigneeHoldReview: "+status);
-                }
-            }
-            else if ("ACCMemberApprov".equals(status.statusCode)) {
-                if( !completeAssigneeApprovalReview(status) ) {
-                    log.error("err in completeAssigneeApprovalReview: "+status);
-                }
-            }
-            else if (IacucStatus.Suspend.isStatus(status.statusCode)) {
-                if( !suspendProtocol(status) ) {
-                    log.error("err in suspendProtocol: "+status);
-                }
-            }
-            else if (IacucStatus.Terminate.isStatus(status.statusCode)) {
-                if( !terminateProtocol(status) ) {
-                    log.error("err in terminateProtocol: "+status);
-                }
-            }
-            else if (IacucStatus.Withdraw.isStatus(status.statusCode)) {
-                if( !withdrawProtocol(status) ) {
-                    log.error("err in withdrawProtocol: "+status);
-                }
-            }
-            else if (IacucStatus.Reinstate.isStatus(status.statusCode)) {
-                if( !reinstateProtocol(status) ) {
-                    log.error("err in reinstateProtocol: "+status);
-                }
-            }
-            else if (IacucStatus.FinalApproval.isStatus(status.statusCode)) {
-                    log.error("err in doApprovalWithoutDone: "+status);
-            }
+        for (OldStatus status : list) {
+            migration(status);
         }
     }
 
-    private boolean doDistributionGoApproval(OldStatus status) {
-            return false;
+    private void migration(OldStatus status) {
+
+        if (IacucStatus.Submit.isStatus(status.statusCode)) {
+            submitProtocol(status);
+        } else if ("Distribute".equals(status.statusCode)) {
+            // ugly case distribution for approval
+            distributeProtocol(status);
+        } else if (IacucStatus.ReturnToPI.isStatus(status.statusCode)) {
+            log.error("err in doReturnToPi: " + status);
+        } else if ("ACCMemberHold".equals(status.statusCode)) {
+            if (!completeAssigneeHoldReview(status)) {
+                log.error("err in completeAssigneeHoldReview: " + status);
+            }
+        } else if ("ACCMemberApprov".equals(status.statusCode)) {
+            if (!completeAssigneeApprovalReview(status)) {
+                log.error("err in completeAssigneeApprovalReview: " + status);
+            }
+        } else if (IacucStatus.Suspend.isStatus(status.statusCode)) {
+            log.error("err in suspendProtocol: " + status);
+        } else if (IacucStatus.Terminate.isStatus(status.statusCode)) {
+            log.error("err in terminateProtocol: " + status);
+        } else if (IacucStatus.Withdraw.isStatus(status.statusCode)) {
+            log.error("err in withdrawProtocol: " + status);
+        } else if (IacucStatus.Reinstate.isStatus(status.statusCode)) {
+            log.error("err in reinstateProtocol: " + status);
+        } else if (IacucStatus.FinalApproval.isStatus(status.statusCode)) {
+            log.error("err in doApprovalWithoutDone: " + status);
+        }
+
     }
 
-    private boolean doDistributionGoReturnToPi(OldStatus status) {
-            return false;
+    public void migrateReviewInProgress(Deque<OldStatus> list) {
+        for (OldStatus status : list) {
+            migrateReviewInProgress(status);
+        }
     }
 
-    private boolean doDistribution(OldStatus status) {
+    private void migrateReviewInProgress(OldStatus status) {
 
-            return false;
+        if (IacucStatus.Submit.isStatus(status.statusCode)) {
+            submitProtocol(status);
+        } else if ("Distribute".equals(status.statusCode)) {
+            // ugly case distribution for approval
+            distributeProtocol(status);
+        } else if (IacucStatus.ReturnToPI.isStatus(status.statusCode)) {
+            log.error("err in doReturnToPi: " + status);
+        } else if ("ACCMemberHold".equals(status.statusCode)) {
+            if (!completeAssigneeHoldReview(status)) {
+                log.error("err in completeAssigneeHoldReview: " + status);
+            }
+        } else if ("ACCMemberApprov".equals(status.statusCode)) {
+            if (!completeAssigneeApprovalReview(status)) {
+                log.error("err in completeAssigneeApprovalReview: " + status);
+            }
+        } else if ("FullReviewReq".equals(status.statusCode)) {
+            if (!completeAssigneeFullReq(status)) {
+                log.error("err in completeAssigneeFullReq: " + status);
+            }
+        } else if (IacucStatus.SOPreApproveA.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOPreApproveA.taskDefKey(), IacucStatus.SOPreApproveA.statusName(), status);
+        } else if (IacucStatus.SOPreApproveB.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOPreApproveB.taskDefKey(), IacucStatus.SOPreApproveB.statusName(), status);
+
+        } else if (IacucStatus.SOPreApproveC.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOPreApproveC.taskDefKey(), IacucStatus.SOPreApproveC.statusName(), status);
+
+        } else if (IacucStatus.SOPreApproveD.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOPreApproveD.taskDefKey(), IacucStatus.SOPreApproveD.statusName(), status);
+
+        } else if (IacucStatus.SOPreApproveE.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOPreApproveE.taskDefKey(), IacucStatus.SOPreApproveE.statusName(), status);
+
+        } else if (IacucStatus.SOPreApproveF.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOPreApproveF.taskDefKey(), IacucStatus.SOPreApproveF.statusName(), status);
+
+        } else if (IacucStatus.SOPreApproveG.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOPreApproveG.taskDefKey(), IacucStatus.SOPreApproveG.statusName(), status);
+
+        } else if (IacucStatus.SOPreApproveI.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOPreApproveI.taskDefKey(), IacucStatus.SOPreApproveI.statusName(), status);
+
+        } else if (IacucStatus.SOHoldA.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOHoldA.taskDefKey(), IacucStatus.SOHoldA.statusName(), status);
+        } else if (IacucStatus.SOHoldB.isStatus(status.statusCode)) {
+
+            completeAppendixTask(IacucStatus.SOHoldB.taskDefKey(), IacucStatus.SOHoldB.statusName(), status);
+        } else if (IacucStatus.SOHoldC.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOHoldC.taskDefKey(), IacucStatus.SOHoldC.statusName(), status);
+        } else if (IacucStatus.SOHoldD.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOHoldD.taskDefKey(), IacucStatus.SOHoldD.statusName(), status);
+        } else if (IacucStatus.SOHoldE.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOHoldE.taskDefKey(), IacucStatus.SOHoldE.statusName(), status);
+        } else if (IacucStatus.SOHoldF.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOHoldF.taskDefKey(), IacucStatus.SOHoldF.statusName(), status);
+        } else if (IacucStatus.SOHoldG.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOHoldG.taskDefKey(), IacucStatus.SOHoldG.statusName(), status);
+        } else if (IacucStatus.SOHoldI.isStatus(status.statusCode)) {
+            completeAppendixTask(IacucStatus.SOHoldI.taskDefKey(), IacucStatus.SOHoldI.statusName(), status);
+        } else if (IacucStatus.Suspend.isStatus(status.statusCode)) {
+            log.error("err in suspendProtocol: " + status);
+        } else if (IacucStatus.Terminate.isStatus(status.statusCode)) {
+            log.error("err in terminateProtocol: " + status);
+        } else if (IacucStatus.Withdraw.isStatus(status.statusCode)) {
+            log.error("err in withdrawProtocol: " + status);
+        } else if (IacucStatus.Reinstate.isStatus(status.statusCode)) {
+            log.error("err in reinstateProtocol: " + status);
+        } else if (IacucStatus.FinalApproval.isStatus(status.statusCode)) {
+            log.error("err in doApprovalWithoutDone: " + status);
+        } else {
+            log.error("unhandled status: " + status);
+        }
+
     }
 
-    private boolean doReturnToPi(OldStatus status) {
+    private boolean completeAppendixTask(String taskDefKey, String taskName, OldStatus status) {
+        if (!hasTask(status.protocolId, taskDefKey)) {
+            log.error("no appendix task for status={} ", status);
+            return false;
+        }
+
+        IacucTaskForm form = new IacucTaskForm();
+        form.setBizKey(status.protocolId);
+        form.setAuthor(status.userId);
+        form.setTaskDefKey(taskDefKey);
+        form.setTaskName(taskName);
+        form.setComment(status.statusNote);
+        attachSnapshotToTask(taskDefKey, status, form);
+        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+        if (taskId != null) {
+            insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean distributeProtocol(OldStatus status) {
+
+        // first from status id get reviewer record
+        ReviewRcd reviewRcd = getReviewRcdByStatusId(status.statusId);
+        if (reviewRcd == null) {
+            log.error("unable to find ReviewInfo by status=" + status);
+            return false;
+        }
+
+        if (reviewRcd.meetingDate != null) {
+            if (!hasTask(status.protocolId, IacucStatus.DistributeSubcommittee.taskDefKey())) {
+                log.error("no subcommittee for protocolId={} ",
+                        status.protocolId);
                 return false;
+            }
+            // go sub-committee
+            IacucDistributeSubcommitteeForm form = new IacucDistributeSubcommitteeForm();
+            form.setTaskDefKey(IacucStatus.DistributeSubcommittee.taskDefKey());
+            form.setTaskName(IacucStatus.DistributeSubcommittee.statusName());
+            form.setBizKey(status.protocolId);
+            form.setAuthor(status.userId);
+            if (!StringUtils.isBlank(status.snapshotId)) {
+                attachSnapshotToTask(IacucStatus.DistributeSubcommittee.taskDefKey(), status, form);
+            }
+            form.setDate(reviewRcd.meetingDate);
+            form.setComment(status.statusNote);
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+            return true;
+        } else {
+            if (!hasTask(status.protocolId, IacucStatus.DistributeReviewer.taskDefKey())) {
+                log.error("no distribute to reviewers for protocolId={} ",
+                        status.protocolId);
+                return false;
+            }
+
+            // go distribute to designated reviewers
+            IacucDistributeReviewerForm form = new IacucDistributeReviewerForm();
+            form.setTaskDefKey(IacucStatus.DistributeReviewer.taskDefKey());
+            form.setTaskName(IacucStatus.DistributeReviewer.statusName());
+            form.setBizKey(status.protocolId);
+            form.setAuthor(status.userId);
+            if (!StringUtils.isBlank(status.snapshotId)) {
+                attachSnapshotToTask(IacucStatus.DistributeReviewer.taskDefKey(), status, form);
+            }
+            form.setComment(status.statusNote);
+            List<String> reviewerList = new ArrayList<String>();
+            addReviewers(reviewerList, reviewRcd.reviewer1);
+            addReviewers(reviewerList, reviewRcd.reviewer2);
+            addReviewers(reviewerList, reviewRcd.reviewer3);
+            if (reviewerList.isEmpty()) {
+                log.error("no reviewers for distribution: status={}, reviewerRcd={}", status, reviewRcd);
+                return false;
+            }
+            form.setReviewerList(reviewerList);
+            //
+            CorrRcd corrRcd = null;
+            if (!StringUtils.isBlank(status.notificationId)) {
+                corrRcd = getCorrRcdByNotificationId(status.notificationId);
+                if (corrRcd != null) {
+                    IacucCorrespondence corr = new IacucCorrespondence();
+                    corr.setCreationDate(corrRcd.creationDate);
+                    corr.setFrom(corrRcd.fromUserId);
+                    corr.setRecipient(corrRcd.to);
+                    corr.setSubject(corrRcd.subject);
+                    corr.setText(corrRcd.body);
+                    form.setCorrespondence(corr);
+                }
+            }
+
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) {
+                insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+                if (corrRcd != null) insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
+                return true;
+            } else {
+                return false;
+            }
+
+        }
     }
 
-    private boolean doApproval(OldStatus status, OldStatus doneStatus) {
-
-        return completeApprovalTask(status, doneStatus);
+    private void addReviewers(List<String> reviewerList, String reviewer) {
+        if (!StringUtils.isBlank(reviewer)) {
+            reviewerList.add(reviewer);
+        }
     }
-
-    private boolean doApprovalWithoutDone(OldStatus status) {
-        return completeApprovalTask(status, status);
-    }
-
 
     private boolean completeAssigneeApprovalReview(OldStatus status) {
+        if (!hasTaskForReviewer(status.protocolId)) {
+            log.error("no reviewer task status={}", status);
             return false;
+        }
+
+        String reviewer = status.userId;
+        if (StringUtils.isBlank(reviewer)) {
+            log.error("no reviewer task status={}", status);
+            return false;
+        }
+
+        IacucTaskForm form = new IacucTaskForm();
+        form.setBizKey(status.protocolId);
+        form.setAuthor(status.userId);
+        form.setComment(status.statusNote);
+        if (reviewer.equals(processService.getTaskAssignee(IacucStatus.Rv1Approval.taskDefKey(), status.protocolId))) {
+            form.setTaskDefKey(IacucStatus.Rv1Approval.taskDefKey());
+            form.setTaskName(IacucStatus.Rv1Approval.statusName());
+            attachSnapshotToTask(IacucStatus.Rv1Approval.taskDefKey(), status, form);
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+
+        } else if (reviewer.equals(processService.getTaskAssignee(IacucStatus.Rv2Approval.taskDefKey(), status.protocolId))) {
+            attachSnapshotToTask(IacucStatus.Rv2Approval.taskDefKey(), status, form);
+            form.setTaskDefKey(IacucStatus.Rv2Approval.taskDefKey());
+            form.setTaskName(IacucStatus.Rv2Approval.statusName());
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+
+        } else if (reviewer.equals(processService.getTaskAssignee(IacucStatus.Rv3Approval.taskDefKey(), status.protocolId))) {
+            attachSnapshotToTask(IacucStatus.Rv3Approval.taskDefKey(), status, form);
+            form.setTaskDefKey(IacucStatus.Rv3Approval.taskDefKey());
+            form.setTaskName(IacucStatus.Rv3Approval.statusName());
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+
+        } else {
+            log.error("no reviewer task status={}", status);
+            return false;
+        }
+
+        return true;
     }
 
     private boolean completeAssigneeHoldReview(OldStatus status) {
+        if (!hasTaskForReviewer(status.protocolId)) {
+            log.error("no reviewer task status={}", status);
             return false;
+        }
+
+        String reviewer = status.userId;
+        if (StringUtils.isBlank(reviewer)) {
+            log.error("no reviewer task status={}", status);
+            return false;
+        }
+
+        IacucTaskForm form = new IacucTaskForm();
+        form.setBizKey(status.protocolId);
+        form.setAuthor(status.userId);
+        form.setComment(status.statusNote);
+        if (reviewer.equals(processService.getTaskAssignee(IacucStatus.Rv1Hold.taskDefKey(), status.protocolId))) {
+            form.setTaskDefKey(IacucStatus.Rv1Hold.taskDefKey());
+            form.setTaskName(IacucStatus.Rv1Hold.statusName());
+            attachSnapshotToTask(IacucStatus.Rv1Hold.taskDefKey(), status, form);
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+
+        } else if (reviewer.equals(processService.getTaskAssignee(IacucStatus.Rv2Hold.taskDefKey(), status.protocolId))) {
+            attachSnapshotToTask(IacucStatus.Rv2Hold.taskDefKey(), status, form);
+            form.setTaskDefKey(IacucStatus.Rv2Hold.taskDefKey());
+            form.setTaskName(IacucStatus.Rv2Hold.statusName());
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+
+        } else if (reviewer.equals(processService.getTaskAssignee(IacucStatus.Rv3Hold.taskDefKey(), status.protocolId))) {
+            attachSnapshotToTask(IacucStatus.Rv3Hold.taskDefKey(), status, form);
+            form.setTaskDefKey(IacucStatus.Rv3Hold.taskDefKey());
+            form.setTaskName(IacucStatus.Rv3Hold.statusName());
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+
+        } else {
+            log.error("no reviewer task status={}", status);
+            return false;
+        }
+
+        return true;
+
+    }
+
+
+    private boolean completeAssigneeFullReq(OldStatus status) {
+        if (!hasTaskForReviewer(status.protocolId)) {
+            log.error("no reviewer task status={}", status);
+            return false;
+        }
+
+        String reviewer = status.userId;
+        if (StringUtils.isBlank(reviewer)) {
+            log.error("no reviewer task status={}", status);
+            return false;
+        }
+
+        IacucTaskForm form = new IacucTaskForm();
+        form.setBizKey(status.protocolId);
+        form.setAuthor(status.userId);
+        form.setComment(status.statusNote);
+        if (reviewer.equals(processService.getTaskAssignee(IacucStatus.Rv1ReqFullReview.taskDefKey(), status.protocolId))) {
+            form.setTaskDefKey(IacucStatus.Rv1ReqFullReview.taskDefKey());
+            form.setTaskName(IacucStatus.Rv1ReqFullReview.statusName());
+            attachSnapshotToTask(IacucStatus.Rv1ReqFullReview.taskDefKey(), status, form);
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+
+        } else if (reviewer.equals(processService.getTaskAssignee(IacucStatus.Rv2ReqFullReview.taskDefKey(), status.protocolId))) {
+            attachSnapshotToTask(IacucStatus.Rv2ReqFullReview.taskDefKey(), status, form);
+            form.setTaskDefKey(IacucStatus.Rv2ReqFullReview.taskDefKey());
+            form.setTaskName(IacucStatus.Rv2ReqFullReview.statusName());
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+
+        } else if (reviewer.equals(processService.getTaskAssignee(IacucStatus.Rv3ReqFullReview.taskDefKey(), status.protocolId))) {
+            attachSnapshotToTask(IacucStatus.Rv3ReqFullReview.taskDefKey(), status, form);
+            form.setTaskDefKey(IacucStatus.Rv3ReqFullReview.taskDefKey());
+            form.setTaskName(IacucStatus.Rv3ReqFullReview.statusName());
+            String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+            if (taskId != null) insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+
+        } else {
+            log.error("no reviewer task status={}", status);
+            return false;
+        }
+
+        return true;
+
     }
 
     private boolean submitProtocol(OldStatus status) {
         if (processService.isProtocolProcessStarted(status.protocolId)) {
-            log.error("process was already started for status={}",status);
+            log.error("process was already started for status={}", status);
             return false;
         } else {
-            Map<String, Object>processInputMap=getProcessInputMap(status);
+            Map<String, Object> processInputMap = getProcessInputMap(status);
             return startProcess(status, processInputMap);
         }
     }
 
-    private Map<String, Object>getProcessInputMap(OldStatus status){
-        Map<String,Object>map=new HashMap<String, Object>();
+    private Map<String, Object> getProcessInputMap(OldStatus status) {
+        Map<String, Object> map = new HashMap<String, Object>();
         List<AttachedAppendix> list = getAttachedAppendix(status.protocolId);
-        if(list.isEmpty()) return map;
-        for(AttachedAppendix a: list) {
-            if( !"approve".equals(a.approvalType) ) {
-                map.put( IacucProcessService.GetAppendixMapKey(a.appendixType), true);
+        if (list.isEmpty()) return map;
+        for (AttachedAppendix a : list) {
+            if (!"approve".equals(a.approvalType)) {
+                map.put(IacucProcessService.GetAppendixMapKey(a.appendixType), true);
             }
         }
         return map;
     }
 
-    private boolean startProcess(OldStatus status, Map<String, Object>processInputMap) {
-        String processId=processService.startProtocolProcess(status.protocolId,status.userId,processInputMap);
+    private boolean startProcess(OldStatus status, Map<String, Object> processInputMap) {
+        String processId = processService.startProtocolProcess(status.protocolId, status.userId, processInputMap);
         insertToMigratorTable(processId, status.statusId, status.statusCodeDate);
-        this.SubmitDate_ =status.statusCodeDate;
-        IacucTaskForm taskForm=new IacucTaskForm();
+        this.SubmitDate_ = status.statusCodeDate;
+        IacucTaskForm taskForm = new IacucTaskForm();
         taskForm.setBizKey(status.protocolId);
         taskForm.setAuthor(status.userId);
         taskForm.setTaskDefKey(IacucStatus.Submit.taskDefKey());
         taskForm.setTaskName(IacucStatus.Submit.statusName());
-        if( !StringUtils.isBlank(status.snapshotId) ) {
+        if (!StringUtils.isBlank(status.snapshotId)) {
             attachSnapshotToTask(IacucStatus.Submit.taskDefKey(), status, taskForm);
         }
-        processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey,taskForm);
+        processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
         return true;
     }
-
 
     public boolean hasTask(String protocolId, String taskDefKey) {
         return processService.hasTaskByTaskDefKey(protocolId, taskDefKey);
     }
 
-    public boolean hasTaskForReviewer(String protocolId, String userId) {
+    public boolean hasTaskForReviewer(String protocolId) {
         return processService.hasReviewerTask(protocolId);
     }
 
@@ -260,8 +543,10 @@ public class Migrator {
 
 
     private boolean attachSnapshotToTask(final String taskDefKey,
-                                        final OldStatus status,
-                                        final IacucTaskForm taskForm) {
+                                         final OldStatus status,
+                                         final IacucTaskForm taskForm) {
+
+        if (StringUtils.isBlank(status.snapshotId)) return false;
 
         try {
             this.jdbcTemplate.query(SQL_SNAPSHOT, new AbstractLobStreamingResultSetExtractor<Object>() {
@@ -270,47 +555,26 @@ public class Migrator {
                     Date date = resultSet.getTimestamp("CREATIONDATE");
                     InputStream is = resultSet.getBinaryStream("FILECONTEXT");
                     if (is != null) {
-                        String attachmentId=processService.attachSnapshotToTask(status.protocolId, taskDefKey, is, date);
+                        String attachmentId = processService.attachSnapshotToTask(status.protocolId, taskDefKey, is, date);
                         taskForm.setSnapshotId(attachmentId);
                     }
                 }
             }, status.snapshotId);
             return true;
         } catch (Exception e) {
-            log.error("attach snapshot to task: status={}",status, e);
+            log.error("attach snapshot to task: status={}", status, e);
             return false;
         }
     }
 
-    private boolean completeSubCommitteeReview(OldStatus status, final boolean goApprovalPath) {
-            return false;
-    }
 
-    private boolean completeReturnToPiTask(OldStatus status) {
-                return false;
-    }
-
-    private boolean completeRTPITask(OldStatus status) {
-        return false;
-    }
-
-    private boolean completeApprovalTask(OldStatus approvalStatus, OldStatus doneStatus) {
-        // this status should go kaput
-        return false;
-    }
-
-    private boolean completeApprovalTask(OldStatus status, String adminNote) {
-        return false;
-    }
-
-
-    public boolean terminateProtocol(OldStatus status)  {
-        if( !processService.terminateProtocol(status.protocolId, status.userId) ) {
+    public boolean terminateProtocol(OldStatus status) {
+        if (!processService.terminateProtocol(status.protocolId, status.userId)) {
             log.error("unable to start termination process: " + status);
             return false;
         }
-        IacucTaskForm taskForm=new IacucTaskForm();
-        if( !StringUtils.isBlank(status.snapshotId)) {
+        IacucTaskForm taskForm = new IacucTaskForm();
+        if (!StringUtils.isBlank(status.snapshotId)) {
             attachSnapshotToTask(IacucStatus.Terminate.taskDefKey(), status, taskForm);
         }
         taskForm.setAuthor(status.userId);
@@ -318,12 +582,12 @@ public class Migrator {
         taskForm.setTaskDefKey(IacucStatus.Terminate.taskDefKey());
         taskForm.setTaskName(IacucStatus.Terminate.statusName());
         taskForm.setComment(status.statusNote);
-        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey,taskForm);
-        if( taskId != null ) {
+        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
+        if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
             return true;
-        }else {
-            log.error("failed to complete termination task: "+status);
+        } else {
+            log.error("failed to complete termination task: " + status);
             return false;
         }
     }
@@ -334,7 +598,7 @@ public class Migrator {
             log.error("unable to start suspension process: " + status);
             return false;
         }
-        IacucTaskForm taskForm=new IacucTaskForm();
+        IacucTaskForm taskForm = new IacucTaskForm();
         taskForm.setAuthor(status.userId);
         taskForm.setComment(status.statusNote);
         taskForm.setBizKey(status.protocolId);
@@ -343,7 +607,7 @@ public class Migrator {
         if (!StringUtils.isBlank(status.snapshotId)) {
             attachSnapshotToTask(IacucStatus.Suspend.taskDefKey(), status, taskForm);
         }
-        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey,taskForm);
+        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
         if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
             return true;
@@ -353,27 +617,27 @@ public class Migrator {
         }
     }
 
-    private boolean reinstateProtocol(OldStatus status)  {
+    private boolean reinstateProtocol(OldStatus status) {
 
-        if ( !processService.reinstateProtocol(status.protocolId, status.userId) ) {
+        if (!processService.reinstateProtocol(status.protocolId, status.userId)) {
             log.error("unable to start reinstate process: " + status);
             return false;
         }
-        IacucTaskForm taskForm=new IacucTaskForm();
+        IacucTaskForm taskForm = new IacucTaskForm();
         taskForm.setAuthor(status.userId);
         taskForm.setBizKey(status.protocolId);
         taskForm.setTaskDefKey(IacucStatus.Reinstate.taskDefKey());
         taskForm.setTaskName(IacucStatus.Reinstate.statusName());
         taskForm.setComment(status.statusNote);
-        if( !StringUtils.isBlank(status.snapshotId) ) {
-            attachSnapshotToTask(IacucStatus.Reinstate.taskDefKey(), status,taskForm);
+        if (!StringUtils.isBlank(status.snapshotId)) {
+            attachSnapshotToTask(IacucStatus.Reinstate.taskDefKey(), status, taskForm);
         }
-        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey,taskForm);
-        if( taskId != null ) {
-            insertToMigratorTable(taskId,status.statusId,status.statusCodeDate);
+        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
+        if (taskId != null) {
+            insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
             return true;
         }
-        log.error("failed to complete reinstate task: "+status);
+        log.error("failed to complete reinstate task: " + status);
         return false;
     }
 
@@ -404,29 +668,45 @@ public class Migrator {
     }
 
 
-    public boolean importKaputStatus(OldStatus status)  {
-        IacucTaskForm taskForm=new IacucTaskForm();
-        taskForm.setBizKey(status.protocolId);
-        taskForm.setAuthor(status.userId);
-        taskForm.setTaskDefKey(IacucStatus.Kaput.taskDefKey());
-        taskForm.setTaskDefKey(IacucStatus.Kaput.statusName());
-        taskForm.setComment(status.statusNote);
+    public boolean importKaputStatus(OldStatus status) {
+        IacucTaskForm form = new IacucTaskForm();
+        form.setBizKey(status.protocolId);
+        form.setAuthor(status.userId);
+        form.setComment(status.statusNote);
+        form.setTaskDefKey(IacucStatus.Kaput.taskDefKey());
+        // name using the original status code
+        form.setTaskName(status.statusCode);
 
-        String processId =processService.importKaputStatus(status.protocolId, status.userId);
-        if(processId != null) {
+        String processId = processService.importKaputStatus(status.protocolId, status.userId);
+        if (processId != null) {
             insertToMigratorTable(processId, status.statusId, status.statusCodeDate);
-        }else {
+        } else {
             return false;
         }
         //
-        if( status.snapshotId != null ) {
-            attachSnapshotToTask(IacucStatus.Kaput.taskDefKey(), status, taskForm);
+        attachSnapshotToTask(IacucStatus.Kaput.taskDefKey(), status, form);
+
+        //
+        CorrRcd corrRcd = null;
+        if (!StringUtils.isBlank(status.notificationId)) {
+            corrRcd = getCorrRcdByNotificationId(status.notificationId);
+            if (corrRcd != null) {
+                IacucCorrespondence corr = new IacucCorrespondence();
+                corr.setCreationDate(corrRcd.creationDate);
+                corr.setFrom(corrRcd.fromUserId);
+                corr.setRecipient(corrRcd.to);
+                corr.setSubject(corrRcd.subject);
+                corr.setText(corrRcd.body);
+                form.setCorrespondence(corr);
+            }
         }
-        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
-        if( taskId != null ) {
+
+        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
+        if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+            if (corrRcd != null) insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
             return true;
-        }else {
+        } else {
             return false;
         }
     }
@@ -437,8 +717,7 @@ public class Migrator {
                 new AbstractCustomSqlExecution<IacucMybatisMapper,
                         List<Map<String, Object>>>(IacucMybatisMapper.class) {
 
-                    public List<Map<String, Object>> execute(IacucMybatisMapper
-                                                                     customMapper) {
+                    public List<Map<String, Object>> execute(IacucMybatisMapper customMapper) {
                         return customMapper.selectTasks();
                     }
                 };
@@ -560,15 +839,15 @@ public class Migrator {
         corr.setText(rcd.body);
         corr.setCreationDate(rcd.creationDate);
         //
-        IacucTaskForm taskForm=new IacucTaskForm();
+        IacucTaskForm taskForm = new IacucTaskForm();
         taskForm.setCorrespondence(corr);
         taskForm.setBizKey(rcd.protocolId);
         taskForm.setTaskDefKey(IacucStatus.AddCorrespondence.taskDefKey());
         taskForm.setTaskName(IacucStatus.AddCorrespondence.statusName());
         taskForm.setAuthor(rcd.fromUserId);
         //
-        String taskId=processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey,taskForm);
-        if( taskId != null ) {
+        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
+        if (taskId != null) {
             insertToCorrTable(taskId, rcd.oid, rcd.creationDate);
             return true;
         }
@@ -578,9 +857,9 @@ public class Migrator {
     public List<IacucTaskForm> getIacucProtocolHistory(String protocolId) {
         List<IacucTaskForm> list = new ArrayList<IacucTaskForm>();
         try {
-            log.info("startTime="+new Date());
+            log.info("startTime=" + new Date());
             list = processService.getIacucProtocolHistory(protocolId);
-            log.info("endTime="+new Date());
+            log.info("endTime=" + new Date());
         } catch (Exception e) {
             log.error("caught exception:", e);
         }
