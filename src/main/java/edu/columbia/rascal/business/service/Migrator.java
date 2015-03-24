@@ -1,9 +1,6 @@
 package edu.columbia.rascal.business.service;
 
-import edu.columbia.rascal.batch.iacuc.AttachedAppendix;
-import edu.columbia.rascal.batch.iacuc.CorrRcd;
-import edu.columbia.rascal.batch.iacuc.OldStatus;
-import edu.columbia.rascal.batch.iacuc.ReviewRcd;
+import edu.columbia.rascal.batch.iacuc.*;
 
 import edu.columbia.rascal.business.service.review.iacuc.*;
 import org.activiti.engine.ManagementService;
@@ -38,6 +35,7 @@ public class Migrator {
 
     private static final String SQL_INSERT_MIGRATOR = "insert into IACUC_MIGRATOR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
     private static final String SQL_INSERT_CORR = "insert into IACUC_CORR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
+    private static final String SQL_INSERT_NOTE = "insert into IACUC_NOTE (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
     private static final String SQL_INSERT_IMI = "insert into IACUC_IMI (POID_, STATUSID_) VALUES (?, ?)";
 
     private static final String SQL_SNAPSHOT = "select CREATIONDATE, FILECONTEXT from IACUCPROTOCOLSNAPSHOT where ID=?";
@@ -118,45 +116,12 @@ public class Migrator {
         this.jdbcTemplate.update(SQL_INSERT_CORR, taskId, statusId, date);
     }
 
+    private void insertToNoteTable(String taskId, String statusId, Date date) {
+        this.jdbcTemplate.update(SQL_INSERT_NOTE, taskId, statusId, date);
+    }
+
     public void insertToImiTable(String protocolId, String statusId) {
         this.jdbcTemplate.update(SQL_INSERT_IMI, protocolId, statusId);
-    }
-
-    public void migration(List<OldStatus> list) {
-        for (OldStatus status : list) {
-            migration(status);
-        }
-    }
-
-    private void migration(OldStatus status) {
-
-        if (IacucStatus.Submit.isStatus(status.statusCode)) {
-            submitProtocol(status);
-        } else if ("Distribute".equals(status.statusCode)) {
-            // ugly case distribution for approval
-            distributeProtocol(status);
-        } else if (IacucStatus.ReturnToPI.isStatus(status.statusCode)) {
-            log.error("err in doReturnToPi: " + status);
-        } else if ("ACCMemberHold".equals(status.statusCode)) {
-            if (!completeAssigneeHoldReview(status)) {
-                log.error("err in completeAssigneeHoldReview: " + status);
-            }
-        } else if ("ACCMemberApprov".equals(status.statusCode)) {
-            if (!completeAssigneeApprovalReview(status)) {
-                log.error("err in completeAssigneeApprovalReview: " + status);
-            }
-        } else if (IacucStatus.Suspend.isStatus(status.statusCode)) {
-            log.error("err in suspendProtocol: " + status);
-        } else if (IacucStatus.Terminate.isStatus(status.statusCode)) {
-            log.error("err in terminateProtocol: " + status);
-        } else if (IacucStatus.Withdraw.isStatus(status.statusCode)) {
-            log.error("err in withdrawProtocol: " + status);
-        } else if (IacucStatus.Reinstate.isStatus(status.statusCode)) {
-            log.error("err in reinstateProtocol: " + status);
-        } else if (IacucStatus.FinalApproval.isStatus(status.statusCode)) {
-            log.error("err in doApprovalWithoutDone: " + status);
-        }
-
     }
 
     public void migrateReviewInProgress(Deque<OldStatus> list) {
@@ -172,9 +137,8 @@ public class Migrator {
         } else if ("Distribute".equals(status.statusCode)) {
             // ugly case distribution for approval
             distributeProtocol(status);
-        } else if (IacucStatus.ReturnToPI.isStatus(status.statusCode)) {
-            log.error("err in doReturnToPi: " + status);
-        } else if ("ACCMemberHold".equals(status.statusCode)) {
+        }
+        else if ("ACCMemberHold".equals(status.statusCode)) {
             if (!completeAssigneeHoldReview(status)) {
                 log.error("err in completeAssigneeHoldReview: " + status);
             }
@@ -212,7 +176,6 @@ public class Migrator {
         } else if (IacucStatus.SOHoldA.isStatus(status.statusCode)) {
             completeAppendixTask(IacucStatus.SOHoldA.taskDefKey(), IacucStatus.SOHoldA.statusName(), status);
         } else if (IacucStatus.SOHoldB.isStatus(status.statusCode)) {
-
             completeAppendixTask(IacucStatus.SOHoldB.taskDefKey(), IacucStatus.SOHoldB.statusName(), status);
         } else if (IacucStatus.SOHoldC.isStatus(status.statusCode)) {
             completeAppendixTask(IacucStatus.SOHoldC.taskDefKey(), IacucStatus.SOHoldC.statusName(), status);
@@ -226,18 +189,10 @@ public class Migrator {
             completeAppendixTask(IacucStatus.SOHoldG.taskDefKey(), IacucStatus.SOHoldG.statusName(), status);
         } else if (IacucStatus.SOHoldI.isStatus(status.statusCode)) {
             completeAppendixTask(IacucStatus.SOHoldI.taskDefKey(), IacucStatus.SOHoldI.statusName(), status);
-        } else if (IacucStatus.Suspend.isStatus(status.statusCode)) {
-            log.error("err in suspendProtocol: " + status);
-        } else if (IacucStatus.Terminate.isStatus(status.statusCode)) {
-            log.error("err in terminateProtocol: " + status);
-        } else if (IacucStatus.Withdraw.isStatus(status.statusCode)) {
-            log.error("err in withdrawProtocol: " + status);
-        } else if (IacucStatus.Reinstate.isStatus(status.statusCode)) {
-            log.error("err in reinstateProtocol: " + status);
-        } else if (IacucStatus.FinalApproval.isStatus(status.statusCode)) {
-            log.error("err in doApprovalWithoutDone: " + status);
-        } else {
-            log.error("unhandled status: " + status);
+        }
+        else {
+            log.error("treat it as kaput for unhandled status: {}",status);
+            importKaputStatus(status);
         }
 
     }
@@ -686,7 +641,7 @@ public class Migrator {
         //
         attachSnapshotToTask(IacucStatus.Kaput.taskDefKey(), status, form);
 
-        //
+        // also check if it has correspondence !!!
         CorrRcd corrRcd = null;
         if (!StringUtils.isBlank(status.notificationId)) {
             corrRcd = getCorrRcdByNotificationId(status.notificationId);
@@ -704,6 +659,7 @@ public class Migrator {
         String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
         if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+            // insert correspondence date
             if (corrRcd != null) insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
             return true;
         } else {
@@ -826,10 +782,8 @@ public class Migrator {
         return list.get(0);
     }
 
-    private boolean saveCorrRcd(CorrRcd rcd) {
-        return importCorrRcd(rcd);
-    }
-
+    // import correspondence is using add correspondence
+    // task is for attached correspondence!!!!!!!!!!!!!!!!!!!!!!
     public boolean importCorrRcd(CorrRcd rcd) {
         IacucCorrespondence corr = new IacucCorrespondence();
         corr.setFrom(rcd.fromUserId);
@@ -846,9 +800,25 @@ public class Migrator {
         taskForm.setTaskName(IacucStatus.AddCorrespondence.statusName());
         taskForm.setAuthor(rcd.fromUserId);
         //
-        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
+        String taskId = processService.addCorrespondence(taskForm);
         if (taskId != null) {
             insertToCorrTable(taskId, rcd.oid, rcd.creationDate);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean importOldNote(OldNote oldNote) {
+        IacucTaskForm taskForm = new IacucTaskForm();
+        taskForm.setBizKey(oldNote.protocolId);
+        taskForm.setAuthor(oldNote.author);
+        taskForm.setComment(oldNote.note);
+        taskForm.setTaskDefKey(IacucStatus.AddNote.taskDefKey());
+        taskForm.setTaskName(IacucStatus.AddNote.statusName());
+        //
+        String taskId = processService.addNote(taskForm);
+        if (taskId != null) {
+            insertToNoteTable(taskId, oldNote.oid, oldNote.date);
             return true;
         }
         return false;

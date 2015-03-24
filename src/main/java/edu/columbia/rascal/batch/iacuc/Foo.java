@@ -13,30 +13,34 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 
-/**
- *   Deque<String> deque=new LinkedList<String>();
- *   deque.addFirst(list.get(i));
- *   for(String str: deque) {}
- *   */
 @Component
 public class Foo {
 
+    // test tables
     private static final String SQL_TABLE_MIGRATOR = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_MIGRATOR'";
     private static final String SQL_TABLE_IMI = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_IMI'";
     private static final String SQL_TABLE_CORR = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_CORR'";
+    private static final String SQL_TABLE_NOTE = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_NOTE'";
 
+    // create tables
     private static final String SQL_CREATE_MIGRATOR = "CREATE table IACUC_MIGRATOR (TASKID_ NVARCHAR2(64) NOT NULL," +
             "STATUSID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
 
     private static final String SQL_CREATE_CORR = "CREATE table IACUC_CORR(TASKID_ NVARCHAR2(64) NOT NULL," +
             "STATUSID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
 
+    private static final String SQL_CREATE_NOTE = "CREATE table IACUC_NOTE(TASKID_ NVARCHAR2(64) NOT NULL," +
+            "STATUSID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
+
     private static final String SQL_CREATE_IMI = "CREATE table IACUC_IMI(POID_ NVARCHAR2(10) NOT NULL, STATUSID_ NVARCHAR2(10) NOT NULL)";
 
+    // drop tables
     private static final String SQL_DROP_MIGRATOR = "drop table IACUC_MIGRATOR purge";
-
     private static final String SQL_DROP_IMI = "drop table IACUC_IMI purge";
+    private static final String SQL_DROP_NOTE = "drop table IACUC_NOTE purge";
+    private static final String SQL_DROP_CORR = "drop table IACUC_CORR purge";
 
+    // update table ACT_HI_TASKINST
     private static final String SQL_UPDATE_MIGRATOR = "update ACT_HI_TASKINST a" +
             " set (a.START_TIME_, a.END_TIME_, a.CLAIM_TIME_)=" +
             " (select m.DATE_, m.DATE_, m.DATE_ from IACUC_MIGRATOR m where a.ID_=m.TASKID_)" +
@@ -47,6 +51,12 @@ public class Foo {
             " (select m.DATE_, m.DATE_, m.DATE_ from IACUC_CORR m where a.ID_=m.TASKID_)" +
             " where exists ( select 1 from IACUC_CORR m where a.ID_=m.TASKID_)";
 
+    private static final String SQL_UPDATE_NOTE = "update ACT_HI_TASKINST a" +
+            " set (a.START_TIME_, a.END_TIME_, a.CLAIM_TIME_)=" +
+            " (select m.DATE_, m.DATE_, m.DATE_ from IACUC_NOTE m where a.ID_=m.TASKID_)" +
+            " where exists ( select 1 from IACUC_NOTE m where a.ID_=m.TASKID_)";
+
+    // select statement
     private static final String SQL_OLD_STATUS = "select OID, STATUSCODE, STATUSCODEDATE, USER_ID, IACUCPROTOCOLHEADERPER_OID, STATUSNOTES, NOTIFICATIONOID, ID" +
             " from IacucProtocolStatus s, RASCAL_USER u, IACUCPROTOCOLSNAPSHOT n" +
             " where s.STATUSSETBY=u.RID" +
@@ -89,6 +99,13 @@ public class Foo {
     private static final String SQL_ALLCORR = "select OID, IACUCPROTOCOLHEADERPER_OID protocolId, USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
             " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID";
 
+
+    private static final String SQL_OLD_NOTE="select OID, N.IACUCPROTOCOLHEADERPER_OID, U.USER_ID, N.NOTETEXT, N.LASTMODIFICATIONDATE" +
+            " from IACUCPROTOCOLNOTES N, RASCAL_USER U" +
+            " where N.NOTEAUTHOR is not null and U.RID=N.NOTEAUTHOR" +
+            " order by N.IACUCPROTOCOLHEADERPER_OID";
+
+
     private static final Logger log = LoggerFactory.getLogger(Foo.class);
 
     private static final Set<String> EndSet = new HashSet<String>();
@@ -123,6 +140,21 @@ public class Foo {
         log.info("done...");
     }
 
+    public void testGetNote() {
+        log.info("set up tables ...");
+        if ( !hasNoteTable() ) {
+            log.info("creating note table ...");
+            createNoteTable();
+        }
+        List<OldNote> list = getAllOldNotes();
+        for(OldNote note: list) {
+            log.info("author={}, note={}, date={}", note.author, note.note, note.date);
+        }
+        log.info("import note...");
+        importOldNote();
+        jdbcTemplate.execute(SQL_UPDATE_NOTE);
+    }
+
     public void startMigration() {
         log.info("start up test...");
         migrator.abortProcess("92300", "testing");
@@ -137,39 +169,42 @@ public class Foo {
         log.info("testing for plist=" + plist);
         //
         log.info("testing step 1...");
-        phase2(plist);
+        walkThrough(plist);
         // get status in progress
-        log.info("testing step 2...");
-        phase3(plist);
+        // log.info("testing step 2...");
+        // phase3(plist);
         //
+
         updateMigrationTables();
         log.info("done...");
     }
 
     public void startup() {
-        log.info("phase 1 set up tables ...");
+        log.info("set up tables ...");
         setupTables();
         updateMigrationTables();
         //
         List<String> listProtocolId = getListProtocolId(SQL_PROTOCOL_ID);
-        log.info("phase 2 import kaput for " + listProtocolId.size() + " protocols");
+        log.info("number of protocols: {}", listProtocolId.size());
         List<String> list = new ArrayList<String>();
         for (int i = 16000; i < listProtocolId.size(); i++) {
             list.add(listProtocolId.get(i));
         }
-        //phase2(listProtocolId);
-        phase2(list);
+        //walkThrough(listProtocolId);
+        walkThrough(list);
         //
-        log.info("phase 3 import corr...");
+        log.info("import corr...");
         importCorr();
         //
-        log.info("phase 4 import status...");
-        List<String> listPoid = getListProtocolId(SQL_POID);
-        phase3(listPoid);
+        // log.info("phase 4 import status...");
+        // List<String> listPoid = getListProtocolId(SQL_POID);
+        // phase3(listPoid);
         //
-        log.info("phase 5 update migration tables...");
+        log.info("import note...");
+        importOldNote();
+        //
+        log.info("update migration tables...");
         updateMigrationTables();
-        log.info("done...");
     }
 
     private void importCorr() {
@@ -180,6 +215,15 @@ public class Foo {
         }
     }
 
+    private void importOldNote() {
+        List<OldNote> list = getAllOldNotes();
+        log.info("number of old notes: {}", list.size());
+        for (OldNote note : list) {
+            migrator.importOldNote(note);
+        }
+    }
+
+    /***
     private void phase3(List<String> listPoid) {
         for (String protocolId : listPoid) {
             // log.info("kaput2: " + SQL_KAPUT_STATUS_2);
@@ -193,12 +237,12 @@ public class Foo {
             migrator.migration(list2);
         }
     }
-
+    ***/
 
     // It may be mixed with finished or unfinished records.
     // Remove unfinished records and insert them into IMI table.
     // Import finished records as kaput status
-    private void phase2(List<String> listProtocolId) {
+    private void walkThrough(List<String> listProtocolId) {
         for (String protocolId : listProtocolId) {
             List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
             if (list == null || list.isEmpty()) continue;
@@ -239,6 +283,7 @@ public class Foo {
         try {
             jdbcTemplate.execute(SQL_UPDATE_MIGRATOR);
             jdbcTemplate.execute(SQL_UPDATE_CORR);
+            jdbcTemplate.execute(SQL_UPDATE_NOTE);
         } catch (Exception e) {
             log.error("err in update table:", e);
         }
@@ -285,6 +330,11 @@ public class Foo {
         return one == 1;
     }
 
+    private boolean hasNoteTable() {
+        int one = jdbcTemplate.queryForObject(SQL_TABLE_NOTE, Integer.class);
+        return one == 1;
+    }
+
     private boolean hasImiTable() {
         int one = jdbcTemplate.queryForObject(SQL_TABLE_IMI, Integer.class);
         return one == 1;
@@ -302,8 +352,18 @@ public class Foo {
         jdbcTemplate.execute(SQL_CREATE_IMI);
     }
 
+    private void createNoteTable() {
+        jdbcTemplate.execute(SQL_CREATE_NOTE);
+    }
+
     private void dropMigratorTable() {
         jdbcTemplate.execute(SQL_DROP_MIGRATOR);
+    }
+    private void dropCorrTable() {
+        jdbcTemplate.execute(SQL_DROP_CORR);
+    }
+    private void dropNoteTable() {
+        jdbcTemplate.execute(SQL_DROP_NOTE);
     }
 
     public List<CorrRcd> getAllCorr() {
@@ -326,6 +386,23 @@ public class Foo {
         return this.jdbcTemplate.query(SQL_ALLCORR, mapper);
     }
 
+    public List<OldNote> getAllOldNotes() {
+        RowMapper<OldNote> mapper = new RowMapper<OldNote>() {
+            @Override
+            public OldNote mapRow(ResultSet rs, int rowNum) throws SQLException {
+                OldNote rcd = new OldNote(
+                        rs.getString("OID"),
+                        rs.getString("IACUCPROTOCOLHEADERPER_OID"),
+                        rs.getString("USER_ID"),
+                        rs.getString("NOTETEXT"),
+                        rs.getTimestamp("LASTMODIFICATIONDATE")
+                );
+                return rcd;
+            }
+        };
+        return this.jdbcTemplate.query(SQL_OLD_NOTE, mapper);
+    }
+
     private void setupTables() {
         if (!hasMigratorTable()) {
             log.info("creating migration table ...");
@@ -339,6 +416,12 @@ public class Foo {
             log.info("creating imi table ...");
             createImiTable();
         }
+
+        if ( !hasNoteTable() ) {
+            log.info("creating note table ...");
+            createNoteTable();
+        }
+
     }
 
 }

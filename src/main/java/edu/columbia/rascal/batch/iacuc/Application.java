@@ -9,8 +9,6 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.ImportResource;
 
-import java.util.*;
-
 @Configuration
 @EnableAutoConfiguration
 @ImportResource( { "application-context.xml" } )
@@ -19,26 +17,12 @@ public class Application {
 
     private static final Logger log= LoggerFactory.getLogger(Application.class);
     public static void main(String[] args) {
-        List<String> list = new ArrayList<String>();
-        list.add("foo");
-        list.add("me");
-        list.add("for");
-        list.add("www");
-
-        Deque<String> linkedList=new LinkedList<String>();
-        for(int i=list.size()-1; i>-1; i--) {
-            log.info("addFirst=" + list.get(i));
-            linkedList.addFirst(list.get(i));
-        }
-
-        for(String str: linkedList) {
-            log.info(str);
-        }
-
         ApplicationContext ctx= SpringApplication.run(Application.class, args);
         Foo foo = ctx.getBean(Foo.class);
-        foo.test();
-        //foo.startup();
+        // foo.test();
+        // foo.startup();
+        foo.testGetNote();
         SpringApplication.exit(ctx);
+        log.info("application done...");
     }
 }

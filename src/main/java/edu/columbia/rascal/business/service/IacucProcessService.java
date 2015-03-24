@@ -437,20 +437,19 @@ class IacucProcessService {
     }
 
     // add correspondence process
-    boolean addCorrespondence(IacucTaskForm taskForm) {
+    String addCorrespondence(IacucTaskForm taskForm) {
         if (startAddCorrespondenceProcess(taskForm.getBizKey()) != null) {
-            completeTaskByTaskForm(ProtocolProcessDefKey, taskForm);
-            return true;
+            return completeTaskByTaskForm(ProtocolProcessDefKey, taskForm);
+
         }
-        return false;
+        return null;
     }
 
-    boolean addNote(IacucTaskForm taskForm) {
+    String addNote(IacucTaskForm taskForm) {
         if (startAddNoteProcess(taskForm.getBizKey()) == null) {
-            return false;
+            return null;
         }
-        completeTaskByTaskForm(ProtocolProcessDefKey, taskForm);
-        return true;
+        return completeTaskByTaskForm(ProtocolProcessDefKey, taskForm);
     }
 
     private ProcessInstance startAddCorrespondenceProcess(String bizKey) {
