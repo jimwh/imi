@@ -23,7 +23,6 @@ public class Application {
         // foo.startup();
         // foo.testGetNote();
         foo.testSubset();
-        // foo.printHistoryByBizKey("90909");
         SpringApplication.exit(ctx);
         log.info("application done...");
     }

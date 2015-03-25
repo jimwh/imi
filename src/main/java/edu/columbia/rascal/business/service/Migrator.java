@@ -56,26 +56,6 @@ public class Migrator {
 
 
     private final JdbcTemplate jdbcTemplate;
-    private static final Set<String> VerifySet = new HashSet<String>();
-
-    static {
-        VerifySet.add("Submit");
-        VerifySet.add("Distribute");
-        VerifySet.add("ReturnToPI");
-        VerifySet.add("Approve");
-        VerifySet.add("Done");
-        VerifySet.add("Suspend");
-        VerifySet.add("Terminate");
-        VerifySet.add("Withdraw");
-        VerifySet.add("Reinstate");
-    }
-
-    private static final Set<String> PassSet = new HashSet<String>();
-
-    static {
-        PassSet.add("ACCMemberHold");
-        PassSet.add("ACCMemberApprov");
-    }
 
     @Resource
     private ManagementService managementService;
@@ -103,8 +83,15 @@ public class Migrator {
     public void importKaput(List<OldStatus> kaputList) {
         log.info("kaputList.size={}", kaputList.size());
         for (OldStatus status : kaputList) {
-            if (!importKaputStatus(status)) {
-                log.error("err in importKaput: " + status);
+            if( "Terminate".equals(status.statusCode) ) {
+                terminateProtocol(status);
+            }else if( "Suspend".equals(status.statusCode)) {
+                suspendProtocol(status);
+            }else if( "Withdraw".equals(status.statusCode)) {
+                withdrawProtocol(status);
+            }
+            else {
+                importKaputStatus(status);
             }
         }
     }
@@ -113,12 +100,12 @@ public class Migrator {
         this.jdbcTemplate.update(SQL_INSERT_MIGRATOR, taskId, statusId, date);
     }
 
-    private void insertToCorrTable(String taskId, String statusId, Date date) {
-        this.jdbcTemplate.update(SQL_INSERT_CORR, taskId, statusId, date);
+    private void insertToCorrTable(String taskId, String corrOid, Date date) {
+        this.jdbcTemplate.update(SQL_INSERT_CORR, taskId, corrOid, date);
     }
 
-    private void insertToNoteTable(String taskId, String statusId, Date date) {
-        this.jdbcTemplate.update(SQL_INSERT_NOTE, taskId, statusId, date);
+    private void insertToNoteTable(String taskId, String noteOid, Date date) {
+        this.jdbcTemplate.update(SQL_INSERT_NOTE, taskId, noteOid, date);
     }
 
     public void insertToImiTable(String protocolId, String statusId) {
@@ -462,6 +449,7 @@ public class Migrator {
         for (AttachedAppendix a : list) {
             if (!"approve".equals(a.approvalType)) {
                 map.put(IacucProcessService.GetAppendixMapKey(a.appendixType), true);
+                log.info("hasAppendix: {}=true", a.appendixType);
             }
         }
         return map;
@@ -529,10 +517,13 @@ public class Migrator {
 
 
     public boolean terminateProtocol(OldStatus status) {
-        if (!processService.terminateProtocol(status.protocolId, status.userId)) {
-            log.error("unable to start termination process: " + status);
+
+        String processInstanceId=processService.terminateProtocol(status.protocolId,status.userId);
+        if( processInstanceId==null ) {
+            log.error("failed to terminate protocol: {}", status);
             return false;
         }
+
         IacucTaskForm taskForm = new IacucTaskForm();
         if (!StringUtils.isBlank(status.snapshotId)) {
             attachSnapshotToTask(IacucStatus.Terminate.taskDefKey(), status, taskForm);
@@ -542,31 +533,33 @@ public class Migrator {
         taskForm.setTaskDefKey(IacucStatus.Terminate.taskDefKey());
         taskForm.setTaskName(IacucStatus.Terminate.statusName());
         taskForm.setComment(status.statusNote);
+
         String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
         if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
             return true;
         } else {
-            log.error("failed to complete termination task: " + status);
+            log.error("failed to complete terminate task: {}", status);
             return false;
         }
     }
 
     public boolean suspendProtocol(OldStatus status) {
 
-        if (!processService.suspendProtocol(status.protocolId, status.userId)) {
-            log.error("unable to start suspension process: " + status);
+        String processInstanceId=processService.suspendProtocol(status.protocolId, status.userId);
+        if( processInstanceId==null ) {
+            log.error("failed to suspend protocol: {}", status);
             return false;
         }
+
         IacucTaskForm taskForm = new IacucTaskForm();
         taskForm.setAuthor(status.userId);
         taskForm.setComment(status.statusNote);
         taskForm.setBizKey(status.protocolId);
         taskForm.setTaskDefKey(IacucStatus.Suspend.taskDefKey());
         taskForm.setTaskName(IacucStatus.Suspend.statusName());
-        if (!StringUtils.isBlank(status.snapshotId)) {
-            attachSnapshotToTask(IacucStatus.Suspend.taskDefKey(), status, taskForm);
-        }
+        attachSnapshotToTask(IacucStatus.Suspend.taskDefKey(), status, taskForm);
+
         String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
         if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
@@ -603,7 +596,8 @@ public class Migrator {
 
     public boolean withdrawProtocol(OldStatus status) {
 
-        if (!processService.withdrawProtocol(status.protocolId, status.userId)) {
+        String processInstanceId = processService.withdrawProtocol(status.protocolId, status.userId);
+        if( processInstanceId == null ) {
             log.error("unable to start withdraw process: " + status);
             return false;
         }
@@ -613,10 +607,7 @@ public class Migrator {
         taskForm.setTaskDefKey(IacucStatus.Withdraw.taskDefKey());
         taskForm.setTaskName(IacucStatus.Withdraw.statusName());
         taskForm.setComment(status.statusNote);
-
-        if (!StringUtils.isBlank(status.snapshotId)) {
-            attachSnapshotToTask(IacucStatus.Withdraw.taskDefKey(), status, taskForm);
-        }
+        attachSnapshotToTask(IacucStatus.Withdraw.taskDefKey(), status, taskForm);
         String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
         if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
@@ -629,6 +620,14 @@ public class Migrator {
 
 
     public boolean importKaputStatus(OldStatus status) {
+        String processId = processService.importKaputStatus(status.protocolId, status.userId);
+        if (processId != null) {
+            insertToMigratorTable(processId, status.statusId, status.statusCodeDate);
+        } else {
+            log.error("failed to import kaput: {}", status);
+            return false;
+        }
+
         IacucTaskForm form = new IacucTaskForm();
         form.setBizKey(status.protocolId);
         form.setAuthor(status.userId);
@@ -636,13 +635,6 @@ public class Migrator {
         form.setTaskDefKey(IacucStatus.Kaput.taskDefKey());
         // name using the original status code
         form.setTaskName(status.statusCode);
-
-        String processId = processService.importKaputStatus(status.protocolId, status.userId);
-        if (processId != null) {
-            insertToMigratorTable(processId, status.statusId, status.statusCodeDate);
-        } else {
-            return false;
-        }
         //
         attachSnapshotToTask(IacucStatus.Kaput.taskDefKey(), status, form);
 

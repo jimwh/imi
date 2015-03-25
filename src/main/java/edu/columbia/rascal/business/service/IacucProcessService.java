@@ -308,35 +308,43 @@ class IacucProcessService {
     }
 
     @Transactional
-    boolean terminateProtocol(String protocolId, String userId) {
-        if (isProtocolProcessStarted(protocolId)) {
+    String terminateProtocol(String protocolId, String userId) {
+        /*
+        if ( isProtocolProcessStarted(protocolId) ) {
             log.error("cannot terminate this protocol because it is process, protocolId={}", protocolId);
             return false;
         }
+        */
         Map<String, Object> processInput = new HashMap<String, Object>();
         processInput.put(START_GATEWAY, IacucStatus.Terminate.gatewayValue());
         identityService.setAuthenticatedUserId(userId);
         ProcessInstance instance = runtimeService.startProcessInstanceByKey(ProtocolProcessDefKey, protocolId, processInput);
-        runtimeService.setProcessInstanceName(instance.getProcessInstanceId(), IacucStatus.Terminate.name());
-
-        log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
-        return true;
+        if( instance == null ) {
+            return null;
+        }
+        String processInstanceId=instance.getProcessInstanceId();
+        runtimeService.setProcessInstanceName(processInstanceId, IacucStatus.Terminate.name());
+        return processInstanceId;
     }
 
     @Transactional
-    boolean suspendProtocol(String protocolId, String userId) {
+    String  suspendProtocol(String protocolId, String userId) {
+        /*
         if (isProtocolProcessStarted(protocolId)) {
             log.error("cannot suspend this protocol because it is process, protocolId={}", protocolId);
             return false;
         }
+        */
         Map<String, Object> processInput = new HashMap<String, Object>();
         processInput.put(START_GATEWAY, IacucStatus.Suspend.gatewayValue());
         identityService.setAuthenticatedUserId(userId);
         ProcessInstance instance = runtimeService.startProcessInstanceByKey(ProtocolProcessDefKey, protocolId, processInput);
-        runtimeService.setProcessInstanceName(instance.getProcessInstanceId(), IacucStatus.Suspend.name());
-
-        log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
-        return true;
+        if( instance == null ) {
+            return null;
+        }
+        String processInstanceId=instance.getProcessInstanceId();
+        runtimeService.setProcessInstanceName(processInstanceId, IacucStatus.Suspend.name());
+        return processInstanceId;
     }
 
     @Transactional
@@ -356,19 +364,22 @@ class IacucProcessService {
     }
 
     @Transactional
-    boolean withdrawProtocol(String protocolId, String userId) {
+    String withdrawProtocol(String protocolId, String userId) {
+        /*
         if (isProtocolProcessStarted(protocolId)) {
             log.error("cannot withdraw this protocol because it is process, protocolId={}", protocolId);
             return false;
         }
+        */
         Map<String, Object> processInput = new HashMap<String, Object>();
         processInput.put(START_GATEWAY, IacucStatus.Withdraw.gatewayValue());
         identityService.setAuthenticatedUserId(userId);
         ProcessInstance instance = runtimeService.startProcessInstanceByKey(ProtocolProcessDefKey, protocolId, processInput);
+        if( instance == null ) {
+            return null;
+        }
         runtimeService.setProcessInstanceName(instance.getProcessInstanceId(), IacucStatus.Reinstate.name());
-
-        log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
-        return true;
+        return instance.getProcessInstanceId();
     }
 
 
@@ -966,10 +977,12 @@ class IacucProcessService {
 
     @Transactional
     String importKaputStatus(String protocolId, String userId) {
+        /*  Because it is KAPUT so don't block it
         if (isProtocolProcessStarted(protocolId)) {
             log.error("cannot import kaput this protocol because it is process, protocolId={}", protocolId);
             return null;
         }
+        */
         Map<String, Object> processInput = new HashMap<String, Object>();
         processInput.put(START_GATEWAY, IacucStatus.Kaput.gatewayValue());
         identityService.setAuthenticatedUserId(userId);

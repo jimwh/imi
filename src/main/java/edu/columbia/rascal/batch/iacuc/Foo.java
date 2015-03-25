@@ -98,7 +98,8 @@ public class Foo {
             " order by IACUCPROTOCOLHEADERPER_OID";
 
     private static final String SQL_ALLCORR = "select OID, IACUCPROTOCOLHEADERPER_OID protocolId, USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
-            " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID";
+            " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID" +
+            " and OID not in (select STATUSID_ from IACUC_CORR) order by OID";
 
 
     private static final String SQL_OLD_NOTE="select OID, N.IACUCPROTOCOLHEADERPER_OID, U.USER_ID, N.NOTETEXT, N.LASTMODIFICATIONDATE" +
@@ -120,6 +121,23 @@ public class Foo {
         EndSet.add("Terminate");
         EndSet.add("Reinstate");
         EndSet.add("Notify");
+        EndSet.add("ChgApprovalDate");
+        EndSet.add("ChgEffectivDate");
+        EndSet.add("ChgEndDate");
+        EndSet.add("ChgMeetingDate");
+        EndSet.add("HazardsApprove");
+        EndSet.add("PreApprove");
+        EndSet.add("Reject");
+        EndSet.add("Release");
+        EndSet.add("UnRelease");
+        EndSet.add("VetHoldB");
+        EndSet.add("VetHoldC");
+        EndSet.add("VetHoldE");
+        EndSet.add("VetHoldF");
+        EndSet.add("VetPreApproveB");
+        EndSet.add("VetPreApproveC");
+        EndSet.add("VetPreApproveE");
+        EndSet.add("VetPreApproveF");
     }
 
     private final JdbcTemplate jdbcTemplate;
@@ -158,9 +176,16 @@ public class Foo {
 
     public void testSubset() {
         log.info("test subset of data ...");
+        migrator.abortProcess("95808", "testing");
         migrator.abortProcess("95800", "testing");
+        migrator.abortProcess("92300", "testing");
+        migrator.abortProcess("95657", "testing");
+        migrator.abortProcess("95150", "testing");
         //
         setupTables();
+        // String protocolId="95150";
+        // String protocolId="95657";
+        // String protocolId="95800";
         // String protocolId="95808";
         // String protocolId="92300";
         // String protocolId="90909";
@@ -169,13 +194,16 @@ public class Foo {
         // plist.add("2975");
         // plist.add("33");
         //
-        String protocolId="95800";
+        String protocolId="96454";
         List<String> plist = new ArrayList<String>();
         plist.add(protocolId);
         log.info("testing protocolId={}", protocolId);
         walkThrough(plist);
+        //
         updateMigrationTables();
         printHistoryByBizKey(protocolId);
+        //List<CorrRcd> corrList = getAllCorr();
+        //log.info("corrSize={}", corrList.size());
     }
 
     public void startup() {
