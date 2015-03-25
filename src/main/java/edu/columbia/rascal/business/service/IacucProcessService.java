@@ -976,7 +976,7 @@ class IacucProcessService {
         ProcessInstance instance = runtimeService.startProcessInstanceByKey(ProtocolProcessDefKey, protocolId, processInput);
         String processInstanceId=instance.getProcessInstanceId();
         runtimeService.setProcessInstanceName(processInstanceId, IacucStatus.Kaput.name());
-        log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
+        // log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
         return processInstanceId;
     }
 

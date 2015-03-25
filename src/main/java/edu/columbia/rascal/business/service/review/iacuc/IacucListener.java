@@ -240,7 +240,7 @@ public class IacucListener implements TaskListener, ExecutionListener {
         if (superExecEntity == null) {
             setUpAppendixApproveStatus(delegateExecution);
             // get the business key of the main process
-            log.info("main process: eventName={}, bizKey={}, procDefId={}", eventName, thisEntity.getBusinessKey(), thisEntity.getProcessDefinitionId());
+            // log.info("main process: eventName={}, bizKey={}, procDefId={}", eventName, thisEntity.getBusinessKey(), thisEntity.getProcessDefinitionId());
             // used by designatedReviews output
             thisEntity.setVariable(AllRvs, true);
             thisEntity.setVariable("redistribute", false);
@@ -342,6 +342,6 @@ public class IacucListener implements TaskListener, ExecutionListener {
 
         exe.setVariable(AllAppendicesApproved, bool);
         exe.setVariable("hasAppendix", !bool);
-        log.info("{}={}", AllAppendicesApproved, bool);
+        // log.info("{}={}", AllAppendicesApproved, bool);
     }
 }

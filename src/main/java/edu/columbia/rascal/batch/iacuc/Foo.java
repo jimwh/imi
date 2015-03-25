@@ -1,6 +1,7 @@
 package edu.columbia.rascal.batch.iacuc;
 
 import edu.columbia.rascal.business.service.Migrator;
+import edu.columbia.rascal.business.service.review.iacuc.IacucTaskForm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -155,28 +156,26 @@ public class Foo {
         jdbcTemplate.execute(SQL_UPDATE_NOTE);
     }
 
-    public void startMigration() {
-        log.info("start up test...");
-        migrator.abortProcess("92300", "testing");
+    public void testSubset() {
+        log.info("test subset of data ...");
+        migrator.abortProcess("95800", "testing");
         //
         setupTables();
-        List<String> plist = new ArrayList<String>();
-        // plist.add("90909");
+        // String protocolId="95808";
+        // String protocolId="92300";
+        // String protocolId="90909";
+        // String protocolId="96205";
         // plist.add("2967");
         // plist.add("2975");
         // plist.add("33");
-        plist.add("92300");
-        log.info("testing for plist=" + plist);
         //
-        log.info("testing step 1...");
+        String protocolId="95800";
+        List<String> plist = new ArrayList<String>();
+        plist.add(protocolId);
+        log.info("testing protocolId={}", protocolId);
         walkThrough(plist);
-        // get status in progress
-        // log.info("testing step 2...");
-        // phase3(plist);
-        //
-
         updateMigrationTables();
-        log.info("done...");
+        printHistoryByBizKey(protocolId);
     }
 
     public void startup() {
@@ -245,15 +244,19 @@ public class Foo {
     private void walkThrough(List<String> listProtocolId) {
         for (String protocolId : listProtocolId) {
             List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
+            log.info("list.size={}", list.size());
             if (list == null || list.isEmpty()) continue;
             // last element is in the EndSet
             // which means these status had been done already
             int lastIndex = list.size() - 1;
-            if (EndSet.contains(list.get(lastIndex))) {
+            OldStatus lastStatus=list.get(lastIndex);
+            if ( EndSet.contains(lastStatus.statusCode) ) {
+                log.info("lastIndex={}, lastStatus={}", lastIndex, lastStatus);
                 migrator.importKaput(list);
                 continue;
             }
 
+            log.info("walk through...");
             // move from bottom up to Submit status
             Deque<OldStatus> deque=new LinkedList<OldStatus>();
 
@@ -261,19 +264,24 @@ public class Foo {
                 int index = list.size() - 1;
                 if (index < 0) break;
                 if ("Submit".equals(list.get(index).statusCode)) {
+                    deque.addFirst( list.get(index) );
                     OldStatus rcd = list.remove(index);
-                    deque.addFirst(rcd);
+                    // deque.addFirst(rcd);
                     // save protocolId and statusId for next round
-                    //migrator.insertToImiTable(rcd.protocolId, rcd.statusId);
+                    // migrator.insertToImiTable(rcd.protocolId, rcd.statusId);
                     break;
                 } else {
-                    list.remove(index);
+                    deque.addFirst( list.get(index) );
+                    list.remove( index );
                 }
             }
             if ( !list.isEmpty() ) {
+                log.info("left over list.size={}", list.size());
                 migrator.importKaput(list);
             }
+
             if ( !deque.isEmpty() ) {
+                log.info("deque.size={}", deque.size());
                 migrator.migrateReviewInProgress(deque);
             }
         }
@@ -424,4 +432,11 @@ public class Foo {
 
     }
 
+    public void printHistoryByBizKey(String protocolId) {
+        List<IacucTaskForm> list=migrator.getIacucProtocolHistory(protocolId);
+        for(IacucTaskForm form: list) {
+            log.info("taskDefKey={}, taskName={}, author={}, endTime={}",
+                    form.getTaskDefKey(), form.getTaskName(), form.getAuthor(),form.getEndTimeString() );
+        }
+    }
 }

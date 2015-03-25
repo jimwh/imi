@@ -34,6 +34,7 @@ public class OldStatus {
 
     @Override
     public String toString() {
+        @SuppressWarnings("StringBufferReplaceableByString")
         StringBuilder sb=new StringBuilder();
         sb.append("[statusId=").append(this.statusId)
                 .append(",statusCode=").append(this.statusCode)

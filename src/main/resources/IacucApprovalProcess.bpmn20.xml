@@ -6,8 +6,7 @@
 
     <process id="IacucApprovalProcess" name="Review and Approve Protocol">
         <extensionElements>
-            <activiti:executionListener event="start"
-                                        delegateExpression="${iacucListener}"/>
+            <activiti:executionListener event="start" delegateExpression="${iacucListener}"/>
         </extensionElements>
 
         <startEvent id="theStart"/>
@@ -19,15 +18,45 @@
             </extensionElements>
         </userTask>
 
-        <userTask id="addNote" name="Add Note" activiti:candidateGroups="IACUC_CAN_ADD_NOTE_PROTOCOL"/>
-        <userTask id="addCorrespondence" name="Add Correspondence" activiti:candidateGroups="IACUC_CAN_ADD_CORRESPONDENCE"/>
-        <userTask id="terminateProtocol" name="Terminate" activiti:candidateGroups="IACUC_CAN_TERMINATE_COLUMBIA_PROTOCOL"/>
-        <userTask id="suspendProtocol" name="Suspend" activiti:candidateGroups="IACUC_CAN_SUSPEND_COLUMBIA_PROTOCOL"/>
+        <userTask id="addNote" name="Add Note" activiti:candidateGroups="IACUC_CAN_ADD_NOTE_PROTOCOL">
+            <extensionElements>
+                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+            </extensionElements>
+        </userTask>
+
+        <userTask id="addCorrespondence" name="Add Correspondence"
+                  activiti:candidateGroups="IACUC_CAN_ADD_CORRESPONDENCE">
+            <extensionElements>
+                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+            </extensionElements>
+        </userTask>
+
+        <userTask id="terminateProtocol" name="Terminate"
+                  activiti:candidateGroups="IACUC_CAN_TERMINATE_COLUMBIA_PROTOCOL">
+            <extensionElements>
+                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+            </extensionElements>
+        </userTask>
+
+        <userTask id="suspendProtocol" name="Suspend" activiti:candidateGroups="IACUC_CAN_SUSPEND_COLUMBIA_PROTOCOL">
+            <extensionElements>
+                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+            </extensionElements>
+        </userTask>
+
         <userTask id="reinstatement" name="Reinstate" activiti:candidateGroups="IACUC_CAN_REINSTATE_COLUMBIA_PROTOCOL">
             <documentation>Reinstate a suspended protocol</documentation>
+            <extensionElements>
+                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+            </extensionElements>
         </userTask>
+
         <userTask id="withdrawal" name="Withdraw" activiti:candidateGroups="IACUC_CAN_WITHDRAW_COLUMBIA_PROTOCOL">
             <documentation>Withdraw a protocol that had been returned to PI</documentation>
+            <extensionElements>
+                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+            </extensionElements>
+
         </userTask>
         <userTask id="kaput" name="Kaput">
             <documentation>Import old status</documentation>
@@ -39,7 +68,12 @@
                 <cancelEventDefinition/>
             </endEvent>
 
-            <userTask id="returnToPI" name="Return to PI" activiti:candidateGroups="IACUC_CAN_RETURN_TO_PI,IACUC_CAN_RETURN_COLUMBIA_PROTOCOL_TO_PI"/>
+            <userTask id="returnToPI" name="Return to PI"
+                      activiti:candidateGroups="IACUC_CAN_RETURN_TO_PI,IACUC_CAN_RETURN_COLUMBIA_PROTOCOL_TO_PI">
+                <extensionElements>
+                    <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                </extensionElements>
+            </userTask>
 
             <!-- distributeToSub, distributeToDS -->
             <transaction id="T1">
@@ -374,7 +408,20 @@
                 </extensionElements>
             </userTask>
 
+            <userTask id="undoApproval" name="Undo Approval"
+                      activiti:candidateGroups="IACUC_CAN_UNDO_APPROVE_COLUMBIA_PROTOCOL">
+                <extensionElements>
+                    <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+                </extensionElements>
+            </userTask>
+            <boundaryEvent id="undoTimeout" cancelActivity="true" attachedToRef="undoApproval">
+                <timerEventDefinition>
+                    <timeDuration>PT72H</timeDuration>
+                </timerEventDefinition>
+            </boundaryEvent>
 
+
+            <!--
             <transaction id="animalOrderOrUndoApproval">
                 <startEvent id="aouStart"/>
                 <endEvent id="aouEnd">
@@ -382,15 +429,8 @@
                 </endEvent>
                 <parallelGateway id="aouFork"/>
                 <exclusiveGateway id="aouJoin"/>
-                <userTask id="undoApproval" name="Undo Approval" activiti:candidateGroups="IACUC_CAN_UNDO_APPROVE_COLUMBIA_PROTOCOL">
-                    <extensionElements>
-                        <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
-
-                        <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
-                    </extensionElements>
-                </userTask>
-                
-                <userTask id="animalOrder" name="Animal Order">
+                <userTask id="animalOrder" name="Animal Order"
+                          activiti:candidateGroups="IACUC_CAN_APPROVE_COLUMBIA_PROTOCOL">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -408,19 +448,20 @@
             <boundaryEvent id="aouCancelled" attachedToRef="animalOrderOrUndoApproval">
                 <cancelEventDefinition/>
             </boundaryEvent>
+            -->
 
 
             <!-- define appendices transactions -->
             <transaction id="appendixATransaction">
                 <userTask id="soPreApproveA" name="Safety Office Pre-approve Appendix-A"
-                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_A">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_APPROVE_A">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
                     </extensionElements>
                 </userTask>
                 <userTask id="soHoldA" name="Safety Office Hold Appendix-A"
-                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_A">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_HOLD_A">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -449,14 +490,14 @@
 
             <transaction id="appendixBTransaction">
                 <userTask id="soPreApproveB" name="Safety Office Pre-approve Appendix-B"
-                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_B">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_APPROVE_B">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
                     </extensionElements>
                 </userTask>
                 <userTask id="soHoldB" name="Safety Office Hold Appendix-B"
-                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_B">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_HOLD_B">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -486,7 +527,7 @@
             <transaction id="appendixCTransaction">
 
                 <userTask id="soPreApproveC" name="Safety Office Pre-approve Appendix-C"
-                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_C">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_APPROVE_C">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -494,7 +535,7 @@
                 </userTask>
 
                 <userTask id="soHoldC" name="Safety Office Hold Appendix-C"
-                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_C">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_HOLD_C">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -525,7 +566,7 @@
             <transaction id="appendixDTransaction">
 
                 <userTask id="soPreApproveD" name="Safety Office Pre-approve Appendix-D"
-                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_D">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_APPROVE_D">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -533,7 +574,7 @@
                 </userTask>
                 
                 <userTask id="soHoldD" name="Safety Office Hold Appendix-D"
-                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_D">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_HOLD_D">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -563,7 +604,7 @@
             <transaction id="appendixETransaction">
 
                 <userTask id="soPreApproveE" name="Safety Office Pre-approve Appendix-E"
-                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_E">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_APPROVE_E">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -571,7 +612,7 @@
                 </userTask>
                 
                 <userTask id="soHoldE" name="Safety Office Hold Appendix-E"
-                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_E">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_HOLD_E">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -601,7 +642,7 @@
             <transaction id="appendixFTransaction">
 
                 <userTask id="soPreApproveF" name="Safety Office Pre-approve Appendix-F"
-                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_F">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_APPROVE_F">
                 	<extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -609,7 +650,7 @@
                 </userTask>
                 
                 <userTask id="soHoldF" name="Safety Office Hold Appendix-F"
-                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_F">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_HOLD_F">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -640,7 +681,7 @@
             <transaction id="appendixGTransaction">
 
                 <userTask id="soPreApproveG" name="Safety Office Pre-approve Appendix-G"
-                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_G">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_APPROVE_G">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -648,7 +689,7 @@
                 </userTask>
                 
                 <userTask id="soHoldG" name="Safety Office Hold Appendix-G"
-                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_G">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_HOLD_G">
                      <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -678,7 +719,7 @@
             <transaction id="appendixITransaction">
 
                 <userTask id="soPreApproveI" name="Safety Office Pre-approve Appendix-I"
-                activiti:candidateGroups="HAZMAT_SAFETY_APPROVE_I">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_APPROVE_I">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -686,7 +727,7 @@
                 </userTask>
 
                 <userTask id="soHoldI" name="Safety Office Hold Appendix-I"
-                activiti:candidateGroups="HAZMAT_SAFETY_HOLD_I">
+                activiti:candidateGroups="IACUC_HAZMAT_SAFETY_HOLD_I">
                     <extensionElements>
                         <activiti:taskListener event="create" delegateExpression="${iacucListener}"/>
                         <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
@@ -753,7 +794,7 @@
             </sequenceFlow>
 
             <inclusiveGateway id="appendixJoin"/>
-            <!-- <sequenceFlow sourceRef="TP" targetRef="appendixJoin"/> -->
+
             <sequenceFlow sourceRef="appendixATransaction" targetRef="appendixJoin"/>
             <sequenceFlow sourceRef="appendixBTransaction" targetRef="appendixJoin"/>
             <sequenceFlow sourceRef="appendixCTransaction" targetRef="appendixJoin"/>
@@ -762,9 +803,6 @@
             <sequenceFlow sourceRef="appendixFTransaction" targetRef="appendixJoin"/>
             <sequenceFlow sourceRef="appendixGTransaction" targetRef="appendixJoin"/>
             <sequenceFlow sourceRef="appendixITransaction" targetRef="appendixJoin"/>
-            <!--
-            <sequenceFlow sourceRef="appendixJoin" targetRef="tpJoin"/>
-            -->
 
             <inclusiveGateway id="tpFork"/>
             <exclusiveGateway id="tpJoin"/>
@@ -793,20 +831,19 @@
                 <conditionExpression xsi:type="tFormalExpression"><![CDATA[${T1_OUT == 2}]]></conditionExpression>
             </sequenceFlow>
 
-            <!--
-            <exclusiveGateway id="foo"/>
-            <sequenceFlow sourceRef="designatedReview" targetRef="foo"/>
-            -->
-
             <sequenceFlow sourceRef="T2" targetRef="fooJoin">
                 <conditionExpression xsi:type="tFormalExpression">${allRvs==true}
                 </conditionExpression>
             </sequenceFlow>
 
+            <sequenceFlow sourceRef="T2" targetRef="stop">
+                <conditionExpression xsi:type="tFormalExpression">${allRvs==false}
+                </conditionExpression>
+            </sequenceFlow>
+
             <inclusiveGateway id="fooJoin"/>
 
-            <!-- <sequenceFlow sourceRef="appendixJoin" targetRef="fooJoin"/> -->
-            <sequenceFlow sourceRef="appendixJoin" targetRef="stop"/>
+            <sequenceFlow sourceRef="appendixJoin" targetRef="fooJoin"/>
 
             <sequenceFlow sourceRef="fooJoin" targetRef="finalApproval">
                 <conditionExpression xsi:type="tFormalExpression">
@@ -816,6 +853,11 @@
 
             <sequenceFlow sourceRef="fooJoin" targetRef="stop">
                 <conditionExpression xsi:type="tFormalExpression">${allRvs==true and allAppendicesApproved==false}
+                </conditionExpression>
+            </sequenceFlow>
+
+            <sequenceFlow sourceRef="fooJoin" targetRef="stop">
+                <conditionExpression xsi:type="tFormalExpression">${allRvs==false and allAppendicesApproved==false}
                 </conditionExpression>
             </sequenceFlow>
 
@@ -830,15 +872,17 @@
                 </conditionExpression>
             </sequenceFlow>
 
-            <sequenceFlow sourceRef="finalApproval" targetRef="animalOrderOrUndoApproval"/>
-            <sequenceFlow sourceRef="animalOrderOrUndoApproval" targetRef="finalApproval">
+            <sequenceFlow sourceRef="finalApproval" targetRef="undoApproval"/>
+            <sequenceFlow sourceRef="undoApproval" targetRef="finalApproval">
                 <conditionExpression xsi:type="tFormalExpression">${undoApproval==true}
                 </conditionExpression>
             </sequenceFlow>
-            <sequenceFlow sourceRef="animalOrderOrUndoApproval" targetRef="tpJoin">
+            <sequenceFlow sourceRef="undoApproval" targetRef="tpJoin">
                 <conditionExpression xsi:type="tFormalExpression">${undoApproval==false}
                 </conditionExpression>
             </sequenceFlow>
+
+            <sequenceFlow sourceRef="undoTimeout" targetRef="tpJoin"/>
 
             <sequenceFlow sourceRef="returnToPI" targetRef="tpJoin"/>
 
@@ -888,10 +932,12 @@
 
         <sequenceFlow sourceRef="submit" targetRef="TP"/>
         <sequenceFlow sourceRef="addCorrespondence" targetRef="thEnd"/>
-        <sequenceFlow sourceRef="terminateProtocol" targetRef="thEnd"/>
-        <sequenceFlow sourceRef="suspendProtocol" targetRef="thEnd"/>
         <sequenceFlow sourceRef="addNote" targetRef="thEnd"/>
-
+        <sequenceFlow sourceRef="suspendProtocol" targetRef="thEnd"/>
+        <sequenceFlow sourceRef="reinstatement" targetRef="thEnd"/>
+        <sequenceFlow sourceRef="withdrawal" targetRef="thEnd"/>
+        <sequenceFlow sourceRef="terminateProtocol" targetRef="thEnd"/>
+        <sequenceFlow sourceRef="kaput" targetRef="thEnd"/>
 
     </process>
 

@@ -16,6 +16,7 @@ public class IacucCorrespondence {
 
     public void setCreationDate(Date creationDate){
         this.creationDate=creationDate;
+        apply();
     }
 
     private String id;
@@ -71,8 +72,8 @@ public class IacucCorrespondence {
     public void apply() {
         if (creationDate == null) {
             creationDate = new Date();
-            id = String.valueOf(creationDate.getTime());
         }
+        id = String.valueOf(creationDate.getTime());
     }
 
     public void setFromFirstLastNameUni(String flu) {

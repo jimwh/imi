@@ -101,6 +101,7 @@ public class Migrator {
     }
 
     public void importKaput(List<OldStatus> kaputList) {
+        log.info("kaputList.size={}", kaputList.size());
         for (OldStatus status : kaputList) {
             if (!importKaputStatus(status)) {
                 log.error("err in importKaput: " + status);
@@ -450,7 +451,7 @@ public class Migrator {
             return false;
         } else {
             Map<String, Object> processInputMap = getProcessInputMap(status);
-            return startProcess(status, processInputMap);
+            return startProcess(status, processInputMap) != null ;
         }
     }
 
@@ -466,7 +467,7 @@ public class Migrator {
         return map;
     }
 
-    private boolean startProcess(OldStatus status, Map<String, Object> processInputMap) {
+    private String startProcess(OldStatus status, Map<String, Object> processInputMap) {
         String processId = processService.startProtocolProcess(status.protocolId, status.userId, processInputMap);
         insertToMigratorTable(processId, status.statusId, status.statusCodeDate);
         this.SubmitDate_ = status.statusCodeDate;
@@ -478,8 +479,12 @@ public class Migrator {
         if (!StringUtils.isBlank(status.snapshotId)) {
             attachSnapshotToTask(IacucStatus.Submit.taskDefKey(), status, taskForm);
         }
-        processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
-        return true;
+        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
+        if( taskId != null ) {
+            insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+            return taskId;
+        }
+        return null;
     }
 
     public boolean hasTask(String protocolId, String taskDefKey) {
@@ -827,9 +832,7 @@ public class Migrator {
     public List<IacucTaskForm> getIacucProtocolHistory(String protocolId) {
         List<IacucTaskForm> list = new ArrayList<IacucTaskForm>();
         try {
-            log.info("startTime=" + new Date());
             list = processService.getIacucProtocolHistory(protocolId);
-            log.info("endTime=" + new Date());
         } catch (Exception e) {
             log.error("caught exception:", e);
         }

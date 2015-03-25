@@ -21,7 +21,9 @@ public class Application {
         Foo foo = ctx.getBean(Foo.class);
         // foo.test();
         // foo.startup();
-        foo.testGetNote();
+        // foo.testGetNote();
+        foo.testSubset();
+        // foo.printHistoryByBizKey("90909");
         SpringApplication.exit(ctx);
         log.info("application done...");
     }
