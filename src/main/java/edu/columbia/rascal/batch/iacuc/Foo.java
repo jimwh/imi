@@ -209,7 +209,7 @@ public class Foo {
     public void startup() {
         log.info("set up tables ...");
         setupTables();
-        updateMigrationTables();
+        // updateMigrationTables();
         //
         List<String> listProtocolId = getListProtocolId(SQL_PROTOCOL_ID);
         log.info("number of protocols: {}", listProtocolId.size());
@@ -222,10 +222,6 @@ public class Foo {
         //
         log.info("import corr...");
         importCorr();
-        //
-        // log.info("phase 4 import status...");
-        // List<String> listPoid = getListProtocolId(SQL_POID);
-        // phase3(listPoid);
         //
         log.info("import note...");
         importOldNote();
@@ -249,22 +245,6 @@ public class Foo {
             migrator.importOldNote(note);
         }
     }
-
-    /***
-    private void phase3(List<String> listPoid) {
-        for (String protocolId : listPoid) {
-            // log.info("kaput2: " + SQL_KAPUT_STATUS_2);
-            List<OldStatus> list1 = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_2);
-            //for(OldStatus s: list1) {log.info("kaput2: " + s);}
-            migrator.importKaput(list1);
-
-            //log.info("oldStatus: " + SQL_OLD_STATUS);
-            List<OldStatus> list2 = getOldStatusByProtocolId(protocolId, SQL_OLD_STATUS);
-            //for(OldStatus s: list2) {log.info("oldStatus: " + s);}
-            migrator.migration(list2);
-        }
-    }
-    ***/
 
     // It may be mixed with finished or unfinished records.
     // Remove unfinished records and insert them into IMI table.
@@ -452,7 +432,6 @@ public class Foo {
             log.info("creating imi table ...");
             createImiTable();
         }
-
         if ( !hasNoteTable() ) {
             log.info("creating note table ...");
             createNoteTable();
