@@ -55,6 +55,31 @@ public class Migrator {
             "and t.OWNEROID=?";
 
 
+    private static final Map<String,String>CodeToName=new HashMap<String,String>();
+    static {
+        CodeToName.put("ACCMemberApprov", IacucStatus.Rv1Approval.statusName());
+        CodeToName.put("ACCMemberHold", IacucStatus.Rv1Hold.statusName());
+        CodeToName.put("FullReviewReq", IacucStatus.Rv1ReqFullReview.statusName());
+        CodeToName.put("SOPreApproveA", IacucStatus.SOPreApproveA.statusName());
+        CodeToName.put("SOPreApproveB", IacucStatus.SOPreApproveB.statusName());
+        CodeToName.put("SOPreApproveC", IacucStatus.SOPreApproveC.statusName());
+        CodeToName.put("SOPreApproveD", IacucStatus.SOPreApproveD.statusName());
+        CodeToName.put("SOPreApproveE", IacucStatus.SOPreApproveE.statusName());
+        CodeToName.put("SOPreApproveF", IacucStatus.SOPreApproveF.statusName());
+        CodeToName.put("SOPreApproveG", IacucStatus.SOPreApproveG.statusName());
+        CodeToName.put("SOPreApproveI", IacucStatus.SOPreApproveI.statusName());
+        CodeToName.put("SOHoldA", IacucStatus.SOHoldA.statusName());
+        CodeToName.put("SOHoldB", IacucStatus.SOHoldB.statusName());
+        CodeToName.put("SOHoldC", IacucStatus.SOHoldC.statusName());
+        CodeToName.put("SOHoldD", IacucStatus.SOHoldD.statusName());
+        CodeToName.put("SOHoldE", IacucStatus.SOHoldE.statusName());
+        CodeToName.put("SOHoldF", IacucStatus.SOHoldF.statusName());
+        CodeToName.put("SOHoldG", IacucStatus.SOHoldG.statusName());
+        CodeToName.put("SOHoldI", IacucStatus.SOHoldI.statusName());
+        CodeToName.put("ReturnToPI", IacucStatus.ReturnToPI.statusName());
+    }
+
+
     private final JdbcTemplate jdbcTemplate;
 
     @Resource
@@ -662,7 +687,12 @@ public class Migrator {
         form.setComment(status.statusNote);
         form.setTaskDefKey(IacucStatus.Kaput.taskDefKey());
         // name using the original status code
-        form.setTaskName(status.statusCode);
+        String taskName = CodeToName.get(status.statusCode);
+        if( taskName != null ) {
+            form.setTaskName(taskName);
+        }else {
+            form.setTaskName(status.statusCode);
+        }
         //
         attachSnapshotToTask(IacucStatus.Kaput.taskDefKey(), status, form);
 

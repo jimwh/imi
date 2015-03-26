@@ -1,6 +1,7 @@
 package edu.columbia.rascal.batch.iacuc;
 
 import edu.columbia.rascal.business.service.Migrator;
+import edu.columbia.rascal.business.service.review.iacuc.IacucStatus;
 import edu.columbia.rascal.business.service.review.iacuc.IacucTaskForm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,7 +112,6 @@ public class Foo {
     private static final Logger log = LoggerFactory.getLogger(Foo.class);
 
     private static final Set<String> EndSet = new HashSet<String>();
-
     static {
         EndSet.add("Withdraw");
         EndSet.add("ReturnToPI");
@@ -139,6 +139,7 @@ public class Foo {
         EndSet.add("VetPreApproveE");
         EndSet.add("VetPreApproveF");
     }
+
 
     private final JdbcTemplate jdbcTemplate;
     @Resource
@@ -183,27 +184,22 @@ public class Foo {
         migrator.abortProcess("95150", "testing");
         //
         setupTables();
-        // String protocolId="95150";
-        // String protocolId="95657";
-        // String protocolId="95800";
-        // String protocolId="95808";
-        // String protocolId="92300";
-        // String protocolId="90909";
-        // String protocolId="96205";
-        // plist.add("2967");
-        // plist.add("2975");
-        // plist.add("33");
         //
-        String protocolId="96454";
         List<String> plist = new ArrayList<String>();
-        plist.add(protocolId);
-        log.info("testing protocolId={}", protocolId);
+        plist.add("90909");
+        plist.add("92300");
+        plist.add("95150");
+        plist.add("95657");
+        plist.add("95800");
+        plist.add("95808");
+        plist.add("96205");
+        log.info("testing plist={}", plist.toString());
         walkThrough(plist);
         //
         updateMigrationTables();
-        printHistoryByBizKey(protocolId);
-        //List<CorrRcd> corrList = getAllCorr();
-        //log.info("corrSize={}", corrList.size());
+        // printHistoryByBizKey(protocolId);
+        List<CorrRcd> corrList = getAllCorr();
+        log.info("corrSize={}", corrList.size());
     }
 
     public void startup() {
@@ -213,12 +209,7 @@ public class Foo {
         //
         List<String> listProtocolId = getListProtocolId(SQL_PROTOCOL_ID);
         log.info("number of protocols: {}", listProtocolId.size());
-        List<String> list = new ArrayList<String>();
-        for (int i = 16000; i < listProtocolId.size(); i++) {
-            list.add(listProtocolId.get(i));
-        }
-        //walkThrough(listProtocolId);
-        walkThrough(list);
+        walkThrough(listProtocolId);
         //
         log.info("import corr...");
         importCorr();
@@ -252,14 +243,14 @@ public class Foo {
     private void walkThrough(List<String> listProtocolId) {
         for (String protocolId : listProtocolId) {
             List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
-            log.info("list.size={}", list.size());
+            // log.info("list.size={}", list.size());
             if (list == null || list.isEmpty()) continue;
             // last element is in the EndSet
             // which means these status had been done already
             int lastIndex = list.size() - 1;
             OldStatus lastStatus=list.get(lastIndex);
             if ( EndSet.contains(lastStatus.statusCode) ) {
-                log.info("lastIndex={}, lastStatus={}", lastIndex, lastStatus);
+                // log.info("lastIndex={}, lastStatus={}", lastIndex, lastStatus);
                 migrator.importKaput(list);
                 continue;
             }
@@ -274,7 +265,6 @@ public class Foo {
                 if ("Submit".equals(list.get(index).statusCode)) {
                     deque.addFirst( list.get(index) );
                     OldStatus rcd = list.remove(index);
-                    // deque.addFirst(rcd);
                     // save protocolId and statusId for next round
                     // migrator.insertToImiTable(rcd.protocolId, rcd.statusId);
                     break;
