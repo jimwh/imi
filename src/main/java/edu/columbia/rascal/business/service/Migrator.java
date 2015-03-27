@@ -55,7 +55,8 @@ public class Migrator {
             "and t.OWNEROID=?";
 
 
-    private static final Map<String,String>CodeToName=new HashMap<String,String>();
+    private static final Map<String, String> CodeToName = new HashMap<String, String>();
+
     static {
         CodeToName.put("ACCMemberApprov", IacucStatus.Rv1Approval.statusName());
         CodeToName.put("ACCMemberHold", IacucStatus.Rv1Hold.statusName());
@@ -87,8 +88,6 @@ public class Migrator {
     @Resource
     private IacucProcessService processService;
 
-    private Date SubmitDate_;
-
     @Autowired
     public Migrator(JdbcTemplate jt) {
         this.jdbcTemplate = jt;
@@ -106,16 +105,15 @@ public class Migrator {
     }
 
     public void importKaput(List<OldStatus> kaputList) {
-        log.info("kaputList.size={}", kaputList.size());
+        // log.info("kaputList.size={}", kaputList.size());
         for (OldStatus status : kaputList) {
-            if( "Terminate".equals(status.statusCode) ) {
+            if ("Terminate".equals(status.statusCode)) {
                 terminateProtocol(status);
-            }else if( "Suspend".equals(status.statusCode)) {
+            } else if ("Suspend".equals(status.statusCode)) {
                 suspendProtocol(status);
-            }else if( "Withdraw".equals(status.statusCode)) {
+            } else if ("Withdraw".equals(status.statusCode)) {
                 withdrawProtocol(status);
-            }
-            else {
+            } else {
                 importKaputStatus(status);
             }
         }
@@ -150,8 +148,7 @@ public class Migrator {
         } else if ("Distribute".equals(status.statusCode)) {
             // ugly case distribution for approval
             distributeProtocol(status);
-        }
-        else if ("ACCMemberHold".equals(status.statusCode)) {
+        } else if ("ACCMemberHold".equals(status.statusCode)) {
             if (!completeAssigneeHoldReview(status)) {
                 log.error("err in completeAssigneeHoldReview: " + status);
             }
@@ -202,9 +199,8 @@ public class Migrator {
             completeAppendixTask(IacucStatus.SOHoldG.taskDefKey(), IacucStatus.SOHoldG.statusName(), status);
         } else if (IacucStatus.SOHoldI.isStatus(status.statusCode)) {
             completeAppendixTask(IacucStatus.SOHoldI.taskDefKey(), IacucStatus.SOHoldI.statusName(), status);
-        }
-        else {
-            log.error("treat it as kaput for unhandled status: {}",status);
+        } else {
+            // log.error("treat it as kaput for unhandled status: {}",status);
             importKaputStatus(status);
         }
 
@@ -287,18 +283,15 @@ public class Migrator {
             }
             form.setReviewerList(reviewerList);
             //
-            CorrRcd corrRcd = null;
-            if (!StringUtils.isBlank(status.notificationId)) {
-                corrRcd = getCorrRcdByNotificationId(status.notificationId);
-                if (corrRcd != null) {
-                    IacucCorrespondence corr = new IacucCorrespondence();
-                    corr.setCreationDate(corrRcd.creationDate);
-                    corr.setFrom(corrRcd.fromUserId);
-                    corr.setRecipient(corrRcd.to);
-                    corr.setSubject(corrRcd.subject);
-                    corr.setText(corrRcd.body);
-                    form.setCorrespondence(corr);
-                }
+            CorrRcd corrRcd = getCorrByCorrId(status.notificationId);
+            if (corrRcd != null) {
+                IacucCorrespondence corr = new IacucCorrespondence();
+                corr.setCreationDate(corrRcd.creationDate);
+                corr.setFrom(corrRcd.fromUserId);
+                corr.setRecipient(corrRcd.to);
+                corr.setSubject(corrRcd.subject);
+                corr.setText(corrRcd.body);
+                form.setCorrespondence(corr);
             }
 
             String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
@@ -311,6 +304,20 @@ public class Migrator {
             }
 
         }
+    }
+
+    private CorrRcd getCorrByCorrId(String notificationId) {
+        if (StringUtils.isBlank(notificationId)) {
+            return null;
+        }
+        CorrRcd corrRcd = getCorrRcdByNotificationId(notificationId);
+        if (corrRcd == null) {
+            return null;
+        }
+        if (StringUtils.isBlank(corrRcd.body)) {
+            return null;
+        }
+        return corrRcd;
     }
 
     private void addReviewers(List<String> reviewerList, String reviewer) {
@@ -463,7 +470,7 @@ public class Migrator {
             return false;
         } else {
             Map<String, Object> processInputMap = getProcessInputMap(status);
-            return startProcess(status, processInputMap) != null ;
+            return startProcess(status, processInputMap) != null;
         }
     }
 
@@ -483,7 +490,7 @@ public class Migrator {
     private String startProcess(OldStatus status, Map<String, Object> processInputMap) {
         String processId = processService.startProtocolProcess(status.protocolId, status.userId, processInputMap);
         insertToMigratorTable(processId, status.statusId, status.statusCodeDate);
-        this.SubmitDate_ = status.statusCodeDate;
+
         IacucTaskForm taskForm = new IacucTaskForm();
         taskForm.setBizKey(status.protocolId);
         taskForm.setAuthor(status.userId);
@@ -493,7 +500,7 @@ public class Migrator {
             attachSnapshotToTask(IacucStatus.Submit.taskDefKey(), status, taskForm);
         }
         String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
-        if( taskId != null ) {
+        if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
             return taskId;
         }
@@ -543,8 +550,8 @@ public class Migrator {
 
     public boolean terminateProtocol(OldStatus status) {
 
-        String processInstanceId=processService.terminateProtocol(status.protocolId,status.userId);
-        if( processInstanceId==null ) {
+        String processInstanceId = processService.terminateProtocol(status.protocolId, status.userId);
+        if (processInstanceId == null) {
             log.error("failed to terminate protocol: {}", status);
             return false;
         }
@@ -557,24 +564,23 @@ public class Migrator {
         form.setComment(status.statusNote);
         attachSnapshotToTask(IacucStatus.Terminate.taskDefKey(), status, form);
         //
-        CorrRcd corrRcd = null;
-        if (!StringUtils.isBlank(status.notificationId)) {
-            corrRcd = getCorrRcdByNotificationId(status.notificationId);
-            if (corrRcd != null) {
-                IacucCorrespondence corr = new IacucCorrespondence();
-                corr.setCreationDate(corrRcd.creationDate);
-                corr.setFrom(corrRcd.fromUserId);
-                corr.setRecipient(corrRcd.to);
-                corr.setSubject(corrRcd.subject);
-                corr.setText(corrRcd.body);
-                form.setCorrespondence(corr);
-            }
+        CorrRcd corrRcd = getCorrByCorrId(status.notificationId);
+        if (corrRcd != null) {
+            IacucCorrespondence corr = new IacucCorrespondence();
+            corr.setCreationDate(corrRcd.creationDate);
+            corr.setFrom(corrRcd.fromUserId);
+            corr.setRecipient(corrRcd.to);
+            corr.setSubject(corrRcd.subject);
+            corr.setText(corrRcd.body);
+            form.setCorrespondence(corr);
         }
+
 
         String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
         if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
-            if(corrRcd!=null && corrRcd.creationDate!=null) insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
+            if (corrRcd != null && corrRcd.creationDate != null)
+                insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
             return true;
         } else {
             log.error("failed to complete terminate task: {}", status);
@@ -584,8 +590,8 @@ public class Migrator {
 
     public boolean suspendProtocol(OldStatus status) {
 
-        String processInstanceId=processService.suspendProtocol(status.protocolId, status.userId);
-        if( processInstanceId==null ) {
+        String processInstanceId = processService.suspendProtocol(status.protocolId, status.userId);
+        if (processInstanceId == null) {
             log.error("failed to suspend protocol: {}", status);
             return false;
         }
@@ -598,24 +604,25 @@ public class Migrator {
         form.setTaskName(IacucStatus.Suspend.statusName());
         attachSnapshotToTask(IacucStatus.Suspend.taskDefKey(), status, form);
 
-        CorrRcd corrRcd = null;
-        if (!StringUtils.isBlank(status.notificationId)) {
-            corrRcd = getCorrRcdByNotificationId(status.notificationId);
-            if (corrRcd != null) {
-                IacucCorrespondence corr = new IacucCorrespondence();
-                corr.setCreationDate(corrRcd.creationDate);
-                corr.setFrom(corrRcd.fromUserId);
-                corr.setRecipient(corrRcd.to);
-                corr.setSubject(corrRcd.subject);
-                corr.setText(corrRcd.body);
-                form.setCorrespondence(corr);
-            }
+        CorrRcd corrRcd = getCorrByCorrId(status.notificationId);
+
+
+        if (corrRcd != null) {
+            IacucCorrespondence corr = new IacucCorrespondence();
+            corr.setCreationDate(corrRcd.creationDate);
+            corr.setFrom(corrRcd.fromUserId);
+            corr.setRecipient(corrRcd.to);
+            corr.setSubject(corrRcd.subject);
+            corr.setText(corrRcd.body);
+            form.setCorrespondence(corr);
         }
+
 
         String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
         if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
-            if(corrRcd!=null && corrRcd.creationDate!=null) insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
+            if (corrRcd != null && corrRcd.creationDate != null)
+                insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
             return true;
         } else {
             log.error("failed to complete suspension task, status: " + status);
@@ -650,7 +657,7 @@ public class Migrator {
     public boolean withdrawProtocol(OldStatus status) {
 
         String processInstanceId = processService.withdrawProtocol(status.protocolId, status.userId);
-        if( processInstanceId == null ) {
+        if (processInstanceId == null) {
             log.error("unable to start withdraw process: " + status);
             return false;
         }
@@ -688,27 +695,24 @@ public class Migrator {
         form.setTaskDefKey(IacucStatus.Kaput.taskDefKey());
         // name using the original status code
         String taskName = CodeToName.get(status.statusCode);
-        if( taskName != null ) {
+        if (taskName != null) {
             form.setTaskName(taskName);
-        }else {
+        } else {
             form.setTaskName(status.statusCode);
         }
         //
         attachSnapshotToTask(IacucStatus.Kaput.taskDefKey(), status, form);
 
         // also check if it has correspondence !!!
-        CorrRcd corrRcd = null;
-        if (!StringUtils.isBlank(status.notificationId)) {
-            corrRcd = getCorrRcdByNotificationId(status.notificationId);
-            if (corrRcd != null) {
-                IacucCorrespondence corr = new IacucCorrespondence();
-                corr.setCreationDate(corrRcd.creationDate);
-                corr.setFrom(corrRcd.fromUserId);
-                corr.setRecipient(corrRcd.to);
-                corr.setSubject(corrRcd.subject);
-                corr.setText(corrRcd.body);
-                form.setCorrespondence(corr);
-            }
+        CorrRcd corrRcd = getCorrByCorrId(status.notificationId);
+        if (corrRcd != null) {
+            IacucCorrespondence corr = new IacucCorrespondence();
+            corr.setCreationDate(corrRcd.creationDate);
+            corr.setFrom(corrRcd.fromUserId);
+            corr.setRecipient(corrRcd.to);
+            corr.setSubject(corrRcd.subject);
+            corr.setText(corrRcd.body);
+            form.setCorrespondence(corr);
         }
 
         String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
@@ -814,7 +818,7 @@ public class Migrator {
                 return rcd;
             }
         }, statusId);
-        return list.get(0);
+        return (list == null || list.isEmpty()) ? null : list.get(0);
     }
 
     public CorrRcd getCorrRcdByNotificationId(String notificationId) {
@@ -834,7 +838,7 @@ public class Migrator {
                 return rcd;
             }
         }, notificationId);
-        return list.get(0);
+        return (list == null || list.isEmpty()) ? null : list.get(0);
     }
 
     public boolean importCorrRcd(CorrRcd rcd) {

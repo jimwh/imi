@@ -1,6 +1,5 @@
 package edu.columbia.rascal.batch.iacuc;
 
-import edu.columbia.rascal.business.service.review.iacuc.IacucStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
@@ -24,12 +23,7 @@ public class Application {
         // foo.startup();
         // foo.testGetNote();
         // foo.testSubset();
-        log.info(IacucStatus.SOPreApproveA.statusName());
-        log.info(IacucStatus.SOHoldA.statusName());
-        log.info(IacucStatus.ReturnToPI.statusName());
-        log.info(IacucStatus.Rv1Approval.statusName());
-        log.info(IacucStatus.Rv1Hold.statusName());
-        log.info(IacucStatus.Rv1ReqFullReview.statusName());
+        foo.startup();
         SpringApplication.exit(ctx);
         log.info("application done...");
     }

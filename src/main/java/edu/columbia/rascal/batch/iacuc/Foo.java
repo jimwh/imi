@@ -103,7 +103,7 @@ public class Foo {
             " and OID not in (select STATUSID_ from IACUC_CORR) order by OID";
 
 
-    private static final String SQL_OLD_NOTE="select OID, N.IACUCPROTOCOLHEADERPER_OID, U.USER_ID, N.NOTETEXT, N.LASTMODIFICATIONDATE" +
+    private static final String SQL_OLD_NOTE = "select OID, N.IACUCPROTOCOLHEADERPER_OID, U.USER_ID, N.NOTETEXT, N.LASTMODIFICATIONDATE" +
             " from IACUCPROTOCOLNOTES N, RASCAL_USER U" +
             " where N.NOTEAUTHOR is not null and U.RID=N.NOTEAUTHOR" +
             " order by N.IACUCPROTOCOLHEADERPER_OID";
@@ -112,6 +112,7 @@ public class Foo {
     private static final Logger log = LoggerFactory.getLogger(Foo.class);
 
     private static final Set<String> EndSet = new HashSet<String>();
+
     static {
         EndSet.add("Withdraw");
         EndSet.add("ReturnToPI");
@@ -162,12 +163,12 @@ public class Foo {
 
     public void testGetNote() {
         log.info("set up tables ...");
-        if ( !hasNoteTable() ) {
+        if (!hasNoteTable()) {
             log.info("creating note table ...");
             createNoteTable();
         }
         List<OldNote> list = getAllOldNotes();
-        for(OldNote note: list) {
+        for (OldNote note : list) {
             log.info("author={}, note={}, date={}", note.author, note.note, note.date);
         }
         log.info("import note...");
@@ -248,38 +249,49 @@ public class Foo {
             // last element is in the EndSet
             // which means these status had been done already
             int lastIndex = list.size() - 1;
-            OldStatus lastStatus=list.get(lastIndex);
-            if ( EndSet.contains(lastStatus.statusCode) ) {
+            OldStatus lastStatus = list.get(lastIndex);
+            if (EndSet.contains(lastStatus.statusCode)) {
                 // log.info("lastIndex={}, lastStatus={}", lastIndex, lastStatus);
                 migrator.importKaput(list);
                 continue;
+            }else {
+                lastIndex -= 1;
+                if(lastIndex> - 1) {
+                    lastStatus = list.get(lastIndex);
+                    if( lastStatus != null ) {
+                        if ("Done".equals(lastStatus.statusCode) || "Approve".equals(lastStatus.statusCode)) {
+                            migrator.importKaput(list);
+                            continue;
+                        }
+                    }
+                }
             }
 
             log.info("walk through...");
             // move from bottom up to Submit status
-            Deque<OldStatus> deque=new LinkedList<OldStatus>();
+            Deque<OldStatus> deque = new LinkedList<OldStatus>();
 
             while (true) {
                 int index = list.size() - 1;
                 if (index < 0) break;
                 if ("Submit".equals(list.get(index).statusCode)) {
-                    deque.addFirst( list.get(index) );
+                    deque.addFirst(list.get(index));
                     OldStatus rcd = list.remove(index);
                     // save protocolId and statusId for next round
                     // migrator.insertToImiTable(rcd.protocolId, rcd.statusId);
                     break;
                 } else {
-                    deque.addFirst( list.get(index) );
-                    list.remove( index );
+                    deque.addFirst(list.get(index));
+                    list.remove(index);
                 }
             }
-            if ( !list.isEmpty() ) {
-                log.info("left over list.size={}", list.size());
+            if (!list.isEmpty()) {
+                //log.info("left over list.size={}", list.size());
                 migrator.importKaput(list);
             }
 
-            if ( !deque.isEmpty() ) {
-                log.info("deque.size={}", deque.size());
+            if (!deque.isEmpty()) {
+                //log.info("deque.size={}", deque.size());
                 migrator.migrateReviewInProgress(deque);
             }
         }
@@ -365,9 +377,11 @@ public class Foo {
     private void dropMigratorTable() {
         jdbcTemplate.execute(SQL_DROP_MIGRATOR);
     }
+
     private void dropCorrTable() {
         jdbcTemplate.execute(SQL_DROP_CORR);
     }
+
     private void dropNoteTable() {
         jdbcTemplate.execute(SQL_DROP_NOTE);
     }
@@ -422,7 +436,7 @@ public class Foo {
             log.info("creating imi table ...");
             createImiTable();
         }
-        if ( !hasNoteTable() ) {
+        if (!hasNoteTable()) {
             log.info("creating note table ...");
             createNoteTable();
         }
@@ -430,10 +444,10 @@ public class Foo {
     }
 
     public void printHistoryByBizKey(String protocolId) {
-        List<IacucTaskForm> list=migrator.getIacucProtocolHistory(protocolId);
-        for(IacucTaskForm form: list) {
+        List<IacucTaskForm> list = migrator.getIacucProtocolHistory(protocolId);
+        for (IacucTaskForm form : list) {
             log.info("taskDefKey={}, taskName={}, author={}, endTime={}",
-                    form.getTaskDefKey(), form.getTaskName(), form.getAuthor(),form.getEndTimeString() );
+                    form.getTaskDefKey(), form.getTaskName(), form.getAuthor(), form.getEndTimeString());
         }
     }
 }

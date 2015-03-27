@@ -632,7 +632,10 @@ class IacucProcessService {
         Assert.notNull(bizKey);
         String taskDefKey = iacucTaskForm.getTaskDefKey();
         Task task = getTask(processDefKey, bizKey, taskDefKey);
-        Assert.notNull(task);
+        if( task==null ) {
+            log.error("can't get task for taskDefKey={}, protocolId={}", taskDefKey,bizKey);
+            return null;
+        }
         String taskId = task.getId();
         if (task.getAssignee() == null) {
             task.setAssignee(iacucTaskForm.getAuthor());
