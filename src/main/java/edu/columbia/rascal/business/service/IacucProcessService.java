@@ -32,6 +32,8 @@ class IacucProcessService {
 
     public static final String ProtocolProcessDefKey = "IacucApprovalProcess";
     public static final String AdverseEventDefKey = "IacucAdverseEvent";
+    public static final String FullReviewReq="FullReviewReq";
+
     private static final String START_GATEWAY = "START_GATEWAY";
     private static final String SNAPSHOT = "snapshot";
     private static final String IACUC_COORESPONDENCE = "IacucCorrespondence";
@@ -100,6 +102,34 @@ class IacucProcessService {
                 .processInstanceBusinessKey(bizKey)
                 .taskDefinitionKeyLike("rv%").list();
         return list != null && !list.isEmpty();
+    }
+    // if all reviewer given the same vote, then return the vote
+    // otherwise return null, meaning different vote
+    String getFullReviewReqVote(String bizKey) {
+        // if all reviewers have done their job
+        if( hasReviewerTask(bizKey)) {
+            return null;
+        }
+        //
+        String processInstanceId = getCurrentProtocolProcessInstanceId(bizKey);
+        List<HistoricTaskInstance> list = historyService.createHistoricTaskInstanceQuery()
+                .processDefinitionKey(IacucProcessService.ProtocolProcessDefKey)
+                .processInstanceBusinessKey(bizKey)
+                .processInstanceId(processInstanceId)
+                .taskDefinitionKeyLike("rv%")
+                .finished()
+                .taskDeleteReason(TASK_COMPLETED)
+                .list();
+        TreeSet<String> nameSet = new TreeSet<String>();
+        for (HistoricTaskInstance hs : list) {
+            nameSet.add(hs.getName());
+        }
+        if ( nameSet.isEmpty() || nameSet.size() > 1) return null;
+        String name=nameSet.pollFirst();
+        if( name.contains("Request Full Review") ) {
+                return FullReviewReq;
+        }
+        return null;
     }
 
     @Transactional

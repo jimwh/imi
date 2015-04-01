@@ -1,7 +1,6 @@
 package edu.columbia.rascal.batch.iacuc;
 
 import edu.columbia.rascal.business.service.Migrator;
-import edu.columbia.rascal.business.service.review.iacuc.IacucStatus;
 import edu.columbia.rascal.business.service.review.iacuc.IacucTaskForm;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,6 +106,7 @@ public class Foo {
             " from IACUCPROTOCOLNOTES N, RASCAL_USER U" +
             " where N.NOTEAUTHOR is not null and U.RID=N.NOTEAUTHOR" +
             " order by N.IACUCPROTOCOLHEADERPER_OID";
+
 
 
     private static final Logger log = LoggerFactory.getLogger(Foo.class);

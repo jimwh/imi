@@ -221,7 +221,7 @@
                             </extensionElements>
                         </userTask>
 
-                        <userTask id="rv3Hold" name="Designated Reviewer Hold (${rv3})" 
+                        <userTask id="rv3Hold" name="Designated Reviewer Hold"
                         		activiti:candidateUsers="${rv3}"
                         		activiti:candidateGroups="IACUC_CAN_REVIEW_HOLD_PROTOCOL">
                             <extensionElements>
