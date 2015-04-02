@@ -35,6 +35,8 @@ public class Migrator {
 
     private static final String SQL_INSERT_MIGRATOR = "insert into IACUC_MIGRATOR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
     private static final String SQL_INSERT_CORR = "insert into IACUC_CORR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
+    private static final String SQL_INSERT_ATTACHED_CORR = "insert into IACUC_ATTACHED_CORR (STATUSID_, CORRID_, DATE_) VALUES (?, ?, ?)";
+
     private static final String SQL_INSERT_NOTE = "insert into IACUC_NOTE (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
     private static final String SQL_INSERT_IMI = "insert into IACUC_IMI (POID_, STATUSID_) VALUES (?, ?)";
 
@@ -78,6 +80,10 @@ public class Migrator {
         CodeToName.put("SOHoldG", IacucStatus.SOHoldG.statusName());
         CodeToName.put("SOHoldI", IacucStatus.SOHoldI.statusName());
         CodeToName.put("ReturnToPI", IacucStatus.ReturnToPI.statusName());
+        CodeToName.put("Terminate", IacucStatus.Terminate.statusName());
+        CodeToName.put("Suspend", IacucStatus.Suspend.statusName());
+        CodeToName.put("Withdraw", IacucStatus.Withdraw.statusName());
+        CodeToName.put("Approve", IacucStatus.FinalApproval.statusName());
     }
 
 
@@ -105,17 +111,22 @@ public class Migrator {
     }
 
     public void importKaput(List<OldStatus> kaputList) {
-        // log.info("kaputList.size={}", kaputList.size());
+        Map<String, Object>processInput=new HashMap<String, Object>();
+        int kaputCount=kaputList.size();
+        // log.info("kaputCount={}", kaputCount);
+        processInput.put("START_GATEWAY", IacucStatus.Kaput.gatewayValue());
+        processInput.put("kaputCount", kaputCount);
+        OldStatus startUpStatus=kaputList.get(0);
+        String processInstanceId = processService.startKaputProcess(startUpStatus.protocolId, startUpStatus.userId, processInput);
+        if (processInstanceId != null) {
+            insertToMigratorTable(processInstanceId, startUpStatus.statusId, startUpStatus.statusCodeDate);
+        } else {
+            log.error("failed to import kaput: {}", startUpStatus);
+            return;
+        }
         for (OldStatus status : kaputList) {
-            if ("Terminate".equals(status.statusCode)) {
-                terminateProtocol(status);
-            } else if ("Suspend".equals(status.statusCode)) {
-                suspendProtocol(status);
-            } else if ("Withdraw".equals(status.statusCode)) {
-                withdrawProtocol(status);
-            } else {
-                importKaputStatus(status);
-            }
+            // log.info("kaput: {}", status);
+            completeKaputTask(status);
         }
     }
 
@@ -125,6 +136,10 @@ public class Migrator {
 
     private void insertToCorrTable(String taskId, String corrOid, Date date) {
         this.jdbcTemplate.update(SQL_INSERT_CORR, taskId, corrOid, date);
+    }
+
+    public void insertToAttachedCorrTable(String statusId, String corrOid, Date date) {
+        this.jdbcTemplate.update(SQL_INSERT_ATTACHED_CORR, statusId, corrOid, date);
     }
 
     private void insertToNoteTable(String taskId, String noteOid, Date date) {
@@ -678,7 +693,6 @@ public class Migrator {
         }
     }
 
-
     public boolean importKaputStatus(OldStatus status) {
         String processId = processService.importKaputStatus(status.protocolId, status.userId);
         if (processId != null) {
@@ -687,6 +701,10 @@ public class Migrator {
             log.error("failed to import kaput: {}", status);
             return false;
         }
+        return completeKaputTask(status);
+    }
+
+    boolean completeKaputTask(OldStatus status) {
 
         IacucTaskForm form = new IacucTaskForm();
         form.setBizKey(status.protocolId);
@@ -719,12 +737,13 @@ public class Migrator {
         if (taskId != null) {
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
             // insert correspondence date
-            if (corrRcd != null) insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
+            if (corrRcd != null) insertToAttachedCorrTable(status.statusId, corrRcd.oid, corrRcd.creationDate);
             return true;
         } else {
             return false;
         }
     }
+
 
     public void foo() {
         CustomSqlExecution<IacucMybatisMapper, List<Map<String, Object>>>

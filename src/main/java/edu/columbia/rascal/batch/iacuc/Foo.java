@@ -22,6 +22,7 @@ public class Foo {
     private static final String SQL_TABLE_IMI = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_IMI'";
     private static final String SQL_TABLE_CORR = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_CORR'";
     private static final String SQL_TABLE_NOTE = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_NOTE'";
+    private static final String SQL_TABLE_ATTACHED_CORR = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_ATTACHED_CORR'";
 
     // create tables
     private static final String SQL_CREATE_MIGRATOR = "CREATE table IACUC_MIGRATOR (TASKID_ NVARCHAR2(64) NOT NULL," +
@@ -29,6 +30,10 @@ public class Foo {
 
     private static final String SQL_CREATE_CORR = "CREATE table IACUC_CORR(TASKID_ NVARCHAR2(64) NOT NULL," +
             "STATUSID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
+
+
+    private static final String SQL_CREATE_ATTACHED_CORR = "CREATE table IACUC_ATTACHED_CORR(" +
+            "STATUSID_ NVARCHAR2(10) NOT NULL, CORRID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
 
     private static final String SQL_CREATE_NOTE = "CREATE table IACUC_NOTE(TASKID_ NVARCHAR2(64) NOT NULL," +
             "STATUSID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
@@ -40,6 +45,7 @@ public class Foo {
     private static final String SQL_DROP_IMI = "drop table IACUC_IMI purge";
     private static final String SQL_DROP_NOTE = "drop table IACUC_NOTE purge";
     private static final String SQL_DROP_CORR = "drop table IACUC_CORR purge";
+    private static final String SQL_DROP_ATTACHED_CORR = "drop table IACUC_ATTACHED_CORR purge";
 
     // update table ACT_HI_TASKINST
     private static final String SQL_UPDATE_MIGRATOR = "update ACT_HI_TASKINST a" +
@@ -97,9 +103,12 @@ public class Foo {
             " where EXISTS (select 1 from IACUC_IMI imi where s.OID= to_number(imi.statusid_) )" +
             " order by IACUCPROTOCOLHEADERPER_OID";
 
+    // IACUC_CORR table STATUSID_ <-- CORR OID
+    // IACUC_ATTACHED_CORR table CORRID_ <-- CORR OID
     private static final String SQL_ALLCORR = "select OID, IACUCPROTOCOLHEADERPER_OID protocolId, USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
             " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID" +
-            " and OID not in (select STATUSID_ from IACUC_CORR) order by OID";
+            " and OID not in (select STATUSID_ from IACUC_CORR)" +
+            " and OID not in (select CORRID_ from IACUC_ATTACHED_CORR) order by OID";
 
 
     private static final String SQL_OLD_NOTE = "select OID, N.IACUCPROTOCOLHEADERPER_OID, U.USER_ID, N.NOTETEXT, N.LASTMODIFICATIONDATE" +
@@ -108,6 +117,10 @@ public class Foo {
             " order by N.IACUCPROTOCOLHEADERPER_OID";
 
 
+    private static final String SQL_IN_PROGRESS_PROTOCOL_HEADER_OID =
+            "select OID from IacucProtocolStatus S" +
+            " where S.STATUSCODE not in ('Create', 'Done', 'ReturnToPI', 'Terminate', 'Withdraw', 'Suspend', 'Approve', 'Notify', 'ChgApprovalDate')" +
+            " and OID = (select max(st.OID) from IacucProtocolStatus st where st.IACUCPROTOCOLHEADERPER_OID=S.IACUCPROTOCOLHEADERPER_OID)";
 
     private static final Logger log = LoggerFactory.getLogger(Foo.class);
 
@@ -141,6 +154,7 @@ public class Foo {
         EndSet.add("VetPreApproveF");
     }
 
+    private static final Set<String>InProgressHeaderOid=new HashSet<String>();
 
     private final JdbcTemplate jdbcTemplate;
     @Resource
@@ -149,6 +163,14 @@ public class Foo {
     @Autowired
     public Foo(JdbcTemplate jt) {
         this.jdbcTemplate = jt;
+    }
+
+
+    public void testTables() {
+        setupTables();
+        migrator.insertToAttachedCorrTable("888", "999", new Date());
+        List<CorrRcd> list = getAllCorr();
+        log.info("size={}", list.size());
     }
 
     public void test() {
@@ -178,22 +200,12 @@ public class Foo {
 
     public void testSubset() {
         log.info("test subset of data ...");
-        migrator.abortProcess("95808", "testing");
-        migrator.abortProcess("95800", "testing");
-        migrator.abortProcess("92300", "testing");
-        migrator.abortProcess("95657", "testing");
-        migrator.abortProcess("95150", "testing");
+        migrator.abortProcess("10530", "testing");
         //
         setupTables();
         //
         List<String> plist = new ArrayList<String>();
-        plist.add("90909");
-        plist.add("92300");
-        plist.add("95150");
-        plist.add("95657");
-        plist.add("95800");
-        plist.add("95808");
-        plist.add("96205");
+        plist.add("10530");
         log.info("testing plist={}", plist.toString());
         walkThrough(plist);
         //
@@ -201,12 +213,15 @@ public class Foo {
         // printHistoryByBizKey(protocolId);
         List<CorrRcd> corrList = getAllCorr();
         log.info("corrSize={}", corrList.size());
+        printHistoryByBizKey("10530");
     }
 
     public void startup() {
         log.info("set up tables ...");
         setupTables();
         // updateMigrationTables();
+        //
+        setInProgressHeaderOid();
         //
         List<String> listProtocolId = getListProtocolId(SQL_PROTOCOL_ID);
         log.info("number of protocols: {}", listProtocolId.size());
@@ -244,6 +259,10 @@ public class Foo {
     private void walkThrough(List<String> listProtocolId) {
         for (String protocolId : listProtocolId) {
             List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
+            if( !InProgressHeaderOid.contains(protocolId) ) {
+                migrator.importKaput(list);
+                continue;
+            }
             // log.info("list.size={}", list.size());
             if (list == null || list.isEmpty()) continue;
             // last element is in the EndSet
@@ -328,6 +347,11 @@ public class Foo {
         return this.jdbcTemplate.query(sql, mapper, protocolId);
     }
 
+    private void setInProgressHeaderOid() {
+        List<String> list = getListProtocolId(SQL_IN_PROGRESS_PROTOCOL_HEADER_OID);
+        InProgressHeaderOid.addAll(list);
+    }
+
     public List<String> getListProtocolId(String sql) {
         RowMapper<String> mapper = new RowMapper<String>() {
             @Override
@@ -348,6 +372,11 @@ public class Foo {
         return one == 1;
     }
 
+    private boolean hasAttachedCorrTable() {
+        int one = jdbcTemplate.queryForObject(SQL_TABLE_ATTACHED_CORR, Integer.class);
+        return one == 1;
+    }
+
     private boolean hasNoteTable() {
         int one = jdbcTemplate.queryForObject(SQL_TABLE_NOTE, Integer.class);
         return one == 1;
@@ -364,6 +393,10 @@ public class Foo {
 
     private void createCorrTable() {
         jdbcTemplate.execute(SQL_CREATE_CORR);
+    }
+
+    private void createAttachedCorrTable() {
+        jdbcTemplate.execute(SQL_CREATE_ATTACHED_CORR);
     }
 
     private void createImiTable() {
@@ -425,19 +458,24 @@ public class Foo {
 
     private void setupTables() {
         if (!hasMigratorTable()) {
-            log.info("creating migration table ...");
+            log.info("creating IACUC_MIGRATOR table ...");
             createMigratorTable();
         }
         if (!hasCorrTable()) {
-            log.info("creating corr table ...");
+            log.info("creating IACUC_CORR table ...");
             createCorrTable();
         }
+        if ( !hasAttachedCorrTable() ) {
+            log.info("creating IACUC_ATTACHED_CORR table ...");
+            createAttachedCorrTable();
+        }
+
         if (!hasImiTable()) {
-            log.info("creating imi table ...");
+            log.info("creating IACUC_IMI table ...");
             createImiTable();
         }
         if (!hasNoteTable()) {
-            log.info("creating note table ...");
+            log.info("creating IACUC_NOTE table ...");
             createNoteTable();
         }
 
@@ -446,8 +484,7 @@ public class Foo {
     public void printHistoryByBizKey(String protocolId) {
         List<IacucTaskForm> list = migrator.getIacucProtocolHistory(protocolId);
         for (IacucTaskForm form : list) {
-            log.info("taskDefKey={}, taskName={}, author={}, endTime={}",
-                    form.getTaskDefKey(), form.getTaskName(), form.getAuthor(), form.getEndTimeString());
+            log.info( form.toString() );
         }
     }
 }

@@ -60,6 +60,9 @@
         </userTask>
         <userTask id="kaput" name="Kaput">
             <documentation>Import old status</documentation>
+            <multiInstanceLoopCharacteristics isSequential="false">
+                <loopCardinality>${kaputCount}</loopCardinality>
+            </multiInstanceLoopCharacteristics>
         </userTask>
 
         <transaction id="TP">

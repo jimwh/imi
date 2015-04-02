@@ -58,6 +58,36 @@ class IacucProcessService {
     private static final String REG_PATTER = "^IACUC_(\\B[A-Z]+_\\B)+[A-Z]+$";
     private static final Pattern IacucAuthorityPattern = Pattern.compile(REG_PATTER);
 
+
+    // this is for old status lookup in data migration
+    private static final Map<String, String> NameToKey = new HashMap<String, String>();
+    static {
+        NameToKey.put(IacucStatus.Rv1Approval.statusName(), IacucStatus.Rv1Approval.taskDefKey());
+        NameToKey.put(IacucStatus.Rv1Hold.statusName(), IacucStatus.Rv1Hold.taskDefKey());
+        NameToKey.put(IacucStatus.Rv1ReqFullReview.statusName(), IacucStatus.Rv1ReqFullReview.taskDefKey());
+        NameToKey.put(IacucStatus.SOPreApproveA.statusName(), IacucStatus.SOPreApproveA.taskDefKey() );
+        NameToKey.put(IacucStatus.SOPreApproveB.statusName(), IacucStatus.SOPreApproveB.taskDefKey());
+        NameToKey.put(IacucStatus.SOPreApproveC.statusName(), IacucStatus.SOPreApproveC.taskDefKey());
+        NameToKey.put(IacucStatus.SOPreApproveD.statusName(), IacucStatus.SOPreApproveD.taskDefKey());
+        NameToKey.put(IacucStatus.SOPreApproveE.statusName(), IacucStatus.SOPreApproveE.taskDefKey());
+        NameToKey.put(IacucStatus.SOPreApproveF.statusName(), IacucStatus.SOPreApproveF.taskDefKey());
+        NameToKey.put(IacucStatus.SOPreApproveG.statusName(), IacucStatus.SOPreApproveG.taskDefKey());
+        NameToKey.put(IacucStatus.SOPreApproveI.statusName(), IacucStatus.SOPreApproveI.taskDefKey());
+        NameToKey.put(IacucStatus.SOHoldA.statusName(), IacucStatus.SOHoldA.taskDefKey() );
+        NameToKey.put(IacucStatus.SOHoldB.statusName(), IacucStatus.SOHoldA.taskDefKey() );
+        NameToKey.put(IacucStatus.SOHoldC.statusName(), IacucStatus.SOHoldA.taskDefKey() );
+        NameToKey.put(IacucStatus.SOHoldD.statusName(), IacucStatus.SOHoldA.taskDefKey() );
+        NameToKey.put(IacucStatus.SOHoldE.statusName(), IacucStatus.SOHoldA.taskDefKey() );
+        NameToKey.put(IacucStatus.SOHoldF.statusName(), IacucStatus.SOHoldA.taskDefKey() );
+        NameToKey.put(IacucStatus.SOHoldG.statusName(), IacucStatus.SOHoldA.taskDefKey() );
+        NameToKey.put(IacucStatus.SOHoldI.statusName(), IacucStatus.SOHoldA.taskDefKey() );
+        NameToKey.put(IacucStatus.ReturnToPI.statusName(), IacucStatus.ReturnToPI.taskDefKey() );
+        NameToKey.put(IacucStatus.Terminate.statusName(), IacucStatus.Terminate.taskDefKey() );
+        NameToKey.put(IacucStatus.Suspend.statusName(), IacucStatus.Suspend.taskDefKey() );
+        NameToKey.put(IacucStatus.Withdraw.statusName(), IacucStatus.Withdraw.taskDefKey() );
+        NameToKey.put(IacucStatus.FinalApproval.statusName(), IacucStatus.FinalApproval.taskDefKey() );
+    }
+
     @Resource
     private RuntimeService runtimeService;
     @Resource
@@ -731,12 +761,13 @@ class IacucProcessService {
                 content);
     }
 
-
+    // using list instead of single for data migration
     private Task getTask(String processDefKey, String bizKey, String taskDefKey) {
-        return taskService.createTaskQuery()
+        List<Task> list = taskService.createTaskQuery()
                 .processDefinitionKey(processDefKey)
                 .processInstanceBusinessKey(bizKey)
-                .taskDefinitionKey(taskDefKey).singleResult();
+                .taskDefinitionKey(taskDefKey).list();
+        return list.isEmpty() ? null : list.get(0);
     }
 
 
@@ -803,6 +834,13 @@ class IacucProcessService {
             }
             if (iacucTaskForm.getAuthor() == null) {
                 iacucTaskForm.setAuthor(hs.getAssignee());
+            }
+
+            // for old imported data
+            if( IacucStatus.Kaput.isDefKey(hs.getTaskDefinitionKey()) ) {
+                String name=hs.getName();
+                String key = NameToKey.get(name);
+                if( key != null ) iacucTaskForm.setTaskDefKey(key);
             }
 
             listIacucTaskForm.add(iacucTaskForm);
@@ -1008,6 +1046,7 @@ class IacucProcessService {
     }
 
 
+    // single case
     @Transactional
     String importKaputStatus(String protocolId, String userId) {
         /*  Because it is KAPUT so don't block it
@@ -1017,9 +1056,30 @@ class IacucProcessService {
         }
         */
         Map<String, Object> processInput = new HashMap<String, Object>();
+        processInput.put("kaputCount", 1);
         processInput.put(START_GATEWAY, IacucStatus.Kaput.gatewayValue());
         identityService.setAuthenticatedUserId(userId);
         ProcessInstance instance = runtimeService.startProcessInstanceByKey(ProtocolProcessDefKey, protocolId, processInput);
+        if( instance==null ) return null;
+        String processInstanceId=instance.getProcessInstanceId();
+        runtimeService.setProcessInstanceName(processInstanceId, IacucStatus.Kaput.name());
+        // log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
+        return processInstanceId;
+    }
+
+    // multiple case
+    @Transactional
+    String startKaputProcess(String protocolId, String userId, Map<String, Object>processInput) {
+        /*  Because it is KAPUT so don't block it
+        if (isProtocolProcessStarted(protocolId)) {
+            log.error("cannot import kaput this protocol because it is process, protocolId={}", protocolId);
+            return null;
+        }
+        */
+        processInput.put(START_GATEWAY, IacucStatus.Kaput.gatewayValue());
+        identityService.setAuthenticatedUserId(userId);
+        ProcessInstance instance = runtimeService.startProcessInstanceByKey(ProtocolProcessDefKey, protocolId, processInput);
+        if( instance == null ) return  null;
         String processInstanceId=instance.getProcessInstanceId();
         runtimeService.setProcessInstanceName(processInstanceId, IacucStatus.Kaput.name());
         // log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
