@@ -105,13 +105,18 @@ public class Foo {
 
     // IACUC_CORR table STATUSID_ <-- CORR OID
     // IACUC_ATTACHED_CORR table CORRID_ <-- CORR OID
-    private static final String SQL_ALLCORR = "select OID, IACUCPROTOCOLHEADERPER_OID protocolId, USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
+    private static final String SQL_ALLCORR =
+            "select OID, IACUCPROTOCOLHEADERPER_OID protocolId, USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
             " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID" +
+            " and SUBJECT is not null" +
+            " and length(trim(RECIPIENTS)) <> 0" +
+            " and CORRESPONDENCETEXT is not null" +
             " and OID not in (select STATUSID_ from IACUC_CORR)" +
             " and OID not in (select CORRID_ from IACUC_ATTACHED_CORR) order by OID";
 
 
-    private static final String SQL_OLD_NOTE = "select OID, N.IACUCPROTOCOLHEADERPER_OID, U.USER_ID, N.NOTETEXT, N.LASTMODIFICATIONDATE" +
+    private static final String SQL_OLD_NOTE =
+            "select OID, N.IACUCPROTOCOLHEADERPER_OID, U.USER_ID, N.NOTETEXT, N.LASTMODIFICATIONDATE" +
             " from IACUCPROTOCOLNOTES N, RASCAL_USER U" +
             " where N.NOTEAUTHOR is not null and U.RID=N.NOTEAUTHOR" +
             " order by N.IACUCPROTOCOLHEADERPER_OID";
@@ -168,7 +173,7 @@ public class Foo {
 
     public void testTables() {
         setupTables();
-        migrator.insertToAttachedCorrTable("888", "999", new Date());
+        // migrator.insertToAttachedCorrTable("888", "999", new Date());
         List<CorrRcd> list = getAllCorr();
         log.info("size={}", list.size());
     }

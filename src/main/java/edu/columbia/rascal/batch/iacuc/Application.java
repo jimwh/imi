@@ -23,7 +23,9 @@ public class Application {
         // foo.startup();
         // foo.testGetNote();
         // foo.testSubset();
+
         foo.startup();
+
         // foo.testTables();
 
         SpringApplication.exit(ctx);
