@@ -830,6 +830,7 @@ class IacucProcessService {
                 iacucTaskForm.setTaskDefKey(hs.getTaskDefinitionKey());
             }
             if (iacucTaskForm.getTaskName() == null) {
+                log.info("old taskName is null");
                 iacucTaskForm.setTaskName(hs.getName());
             }
             if (iacucTaskForm.getAuthor() == null) {
@@ -840,6 +841,7 @@ class IacucProcessService {
             if( IacucStatus.Kaput.isDefKey(hs.getTaskDefinitionKey()) ) {
                 String name=hs.getName();
                 String key = NameToKey.get(name);
+                log.info("name={}, key={}", name, key);
                 if( key != null ) iacucTaskForm.setTaskDefKey(key);
             }
 

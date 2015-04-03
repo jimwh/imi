@@ -492,4 +492,12 @@ public class Foo {
             log.info( form.toString() );
         }
     }
+
+    public void printHistoryByBizKey(int protocolId) {
+        List<IacucTaskForm> list = migrator.getIacucProtocolHistory( String.valueOf(protocolId) );
+        for (IacucTaskForm form : list) {
+            log.info("taskDefKey={}, taskName={}, endTime={}", form.getTaskDefKey(),form.getTaskName(), form.getEndTimeString() );
+        }
+    }
+
 }
