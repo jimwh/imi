@@ -310,14 +310,13 @@ public class Migrator {
             }
 
             String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
-            if (taskId != null) {
-                insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
-                if (corrRcd != null) insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
-                return true;
-            } else {
-                return false;
+            if( taskId==null ) return false;
+            insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+            if (corrRcd != null) {
+                // insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
+                insertToAttachedCorrTable(status.statusId, corrRcd.oid, corrRcd.creationDate);
             }
-
+            return false;
         }
     }
 
@@ -515,11 +514,11 @@ public class Migrator {
             attachSnapshotToTask(IacucStatus.Submit.taskDefKey(), status, taskForm);
         }
         String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
-        if (taskId != null) {
-            insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
-            return taskId;
+        if (taskId == null) {
+            return null;
         }
-        return null;
+        insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
+        return taskId;
     }
 
     public boolean hasTask(String protocolId, String taskDefKey) {
@@ -563,145 +562,15 @@ public class Migrator {
     }
 
 
-    public boolean terminateProtocol(OldStatus status) {
-
-        String processInstanceId = processService.terminateProtocol(status.protocolId, status.userId);
-        if (processInstanceId == null) {
-            log.error("failed to terminate protocol: {}", status);
-            return false;
-        }
-
-        IacucTaskForm form = new IacucTaskForm();
-        form.setAuthor(status.userId);
-        form.setBizKey(status.protocolId);
-        form.setTaskDefKey(IacucStatus.Terminate.taskDefKey());
-        form.setTaskName(IacucStatus.Terminate.statusName());
-        form.setComment(status.statusNote);
-        attachSnapshotToTask(IacucStatus.Terminate.taskDefKey(), status, form);
-        //
-        CorrRcd corrRcd = getCorrByCorrId(status.notificationId);
-        if (corrRcd != null) {
-            IacucCorrespondence corr = new IacucCorrespondence();
-            corr.setCreationDate(corrRcd.creationDate);
-            corr.setFrom(corrRcd.fromUserId);
-            corr.setRecipient(corrRcd.to);
-            corr.setSubject(corrRcd.subject);
-            corr.setText(corrRcd.body);
-            form.setCorrespondence(corr);
-        }
-
-
-        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
-        if (taskId != null) {
-            insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
-            if (corrRcd != null && corrRcd.creationDate != null)
-                insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
-            return true;
-        } else {
-            log.error("failed to complete terminate task: {}", status);
-            return false;
-        }
-    }
-
-    public boolean suspendProtocol(OldStatus status) {
-
-        String processInstanceId = processService.suspendProtocol(status.protocolId, status.userId);
-        if (processInstanceId == null) {
-            log.error("failed to suspend protocol: {}", status);
-            return false;
-        }
-
-        IacucTaskForm form = new IacucTaskForm();
-        form.setAuthor(status.userId);
-        form.setComment(status.statusNote);
-        form.setBizKey(status.protocolId);
-        form.setTaskDefKey(IacucStatus.Suspend.taskDefKey());
-        form.setTaskName(IacucStatus.Suspend.statusName());
-        attachSnapshotToTask(IacucStatus.Suspend.taskDefKey(), status, form);
-
-        CorrRcd corrRcd = getCorrByCorrId(status.notificationId);
-
-
-        if (corrRcd != null) {
-            IacucCorrespondence corr = new IacucCorrespondence();
-            corr.setCreationDate(corrRcd.creationDate);
-            corr.setFrom(corrRcd.fromUserId);
-            corr.setRecipient(corrRcd.to);
-            corr.setSubject(corrRcd.subject);
-            corr.setText(corrRcd.body);
-            form.setCorrespondence(corr);
-        }
-
-
-        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, form);
-        if (taskId != null) {
-            insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
-            if (corrRcd != null && corrRcd.creationDate != null)
-                insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
-            return true;
-        } else {
-            log.error("failed to complete suspension task, status: " + status);
-            return false;
-        }
-    }
-
-    private boolean reinstateProtocol(OldStatus status) {
-
-        if (!processService.reinstateProtocol(status.protocolId, status.userId)) {
-            log.error("unable to start reinstate process: " + status);
-            return false;
-        }
-        IacucTaskForm taskForm = new IacucTaskForm();
-        taskForm.setAuthor(status.userId);
-        taskForm.setBizKey(status.protocolId);
-        taskForm.setTaskDefKey(IacucStatus.Reinstate.taskDefKey());
-        taskForm.setTaskName(IacucStatus.Reinstate.statusName());
-        taskForm.setComment(status.statusNote);
-        if (!StringUtils.isBlank(status.snapshotId)) {
-            attachSnapshotToTask(IacucStatus.Reinstate.taskDefKey(), status, taskForm);
-        }
-        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
-        if (taskId != null) {
-            insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
-            return true;
-        }
-        log.error("failed to complete reinstate task: " + status);
-        return false;
-    }
-
-    public boolean withdrawProtocol(OldStatus status) {
-
-        String processInstanceId = processService.withdrawProtocol(status.protocolId, status.userId);
-        if (processInstanceId == null) {
-            log.error("unable to start withdraw process: " + status);
-            return false;
-        }
-        IacucTaskForm taskForm = new IacucTaskForm();
-        taskForm.setAuthor(status.userId);
-        taskForm.setBizKey(status.protocolId);
-        taskForm.setTaskDefKey(IacucStatus.Withdraw.taskDefKey());
-        taskForm.setTaskName(IacucStatus.Withdraw.statusName());
-        taskForm.setComment(status.statusNote);
-        attachSnapshotToTask(IacucStatus.Withdraw.taskDefKey(), status, taskForm);
-        String taskId = processService.completeTaskByTaskForm(IacucProcessService.ProtocolProcessDefKey, taskForm);
-        if (taskId != null) {
-            insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
-            return true;
-        } else {
-            log.error("failed to complete withdrawal task: " + status);
-            return false;
-        }
-    }
-
     public boolean importKaputStatus(OldStatus status) {
         String processId = processService.importKaputStatus(status.protocolId, status.userId);
         if (processId != null) {
             insertToMigratorTable(processId, status.statusId, status.statusCodeDate);
+            return completeKaputTask(status);
         } else {
             log.error("failed to import kaput: {}", status);
             return false;
         }
-        return completeKaputTask(status);
     }
 
     boolean completeKaputTask(OldStatus status) {

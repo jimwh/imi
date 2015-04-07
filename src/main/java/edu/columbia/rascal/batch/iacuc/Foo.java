@@ -123,9 +123,10 @@ public class Foo {
 
 
     private static final String SQL_IN_PROGRESS_PROTOCOL_HEADER_OID =
-            "select OID from IacucProtocolStatus S" +
+            "select IACUCPROTOCOLHEADERPER_OID from IacucProtocolStatus S" +
             " where S.STATUSCODE not in ('Create', 'Done', 'ReturnToPI', 'Terminate', 'Withdraw', 'Suspend', 'Approve', 'Notify', 'ChgApprovalDate')" +
-            " and OID = (select max(st.OID) from IacucProtocolStatus st where st.IACUCPROTOCOLHEADERPER_OID=S.IACUCPROTOCOLHEADERPER_OID)";
+            " and S.OID = (select max(st.OID) from IacucProtocolStatus st where st.IACUCPROTOCOLHEADERPER_OID=S.IACUCPROTOCOLHEADERPER_OID)" +
+            " order by IACUCPROTOCOLHEADERPER_OID";
 
     private static final Logger log = LoggerFactory.getLogger(Foo.class);
 
@@ -176,6 +177,7 @@ public class Foo {
         // migrator.insertToAttachedCorrTable("888", "999", new Date());
         List<CorrRcd> list = getAllCorr();
         log.info("size={}", list.size());
+        setInProgressHeaderOid();
     }
 
     public void test() {
@@ -226,7 +228,7 @@ public class Foo {
         setupTables();
         // updateMigrationTables();
         //
-        setInProgressHeaderOid();
+        // setInProgressHeaderOid();
         //
         List<String> listProtocolId = getListProtocolId(SQL_PROTOCOL_ID);
         log.info("number of protocols: {}", listProtocolId.size());
@@ -264,11 +266,12 @@ public class Foo {
     private void walkThrough(List<String> listProtocolId) {
         for (String protocolId : listProtocolId) {
             List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
+
             if( !InProgressHeaderOid.contains(protocolId) ) {
                 migrator.importKaput(list);
                 continue;
             }
-            // log.info("list.size={}", list.size());
+
             if (list == null || list.isEmpty()) continue;
             // last element is in the EndSet
             // which means these status had been done already
@@ -354,6 +357,7 @@ public class Foo {
 
     private void setInProgressHeaderOid() {
         List<String> list = getListProtocolId(SQL_IN_PROGRESS_PROTOCOL_HEADER_OID);
+        log.info("in progress size={}", list.size());
         InProgressHeaderOid.addAll(list);
     }
 

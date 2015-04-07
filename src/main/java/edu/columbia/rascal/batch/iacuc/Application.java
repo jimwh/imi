@@ -24,8 +24,9 @@ public class Application {
         // foo.testGetNote();
         // foo.testSubset();
         // foo.testTables();
-        foo.printHistoryByBizKey(10633);
-        // foo.startup();
+        // foo.printHistoryByBizKey(10633);
+        //
+        foo.startup();
         SpringApplication.exit(ctx);
         log.info("application done...");
     }
