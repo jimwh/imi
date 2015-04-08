@@ -839,7 +839,7 @@ class IacucProcessService {
 
             // for old imported data
             if( IacucStatus.Kaput.isDefKey(hs.getTaskDefinitionKey()) ) {
-                String name=hs.getName();
+                String name=iacucTaskForm.getTaskName();
                 String key = NameToKey.get(name);
                 log.info("name={}, key={}", name, key);
                 if( key != null ) iacucTaskForm.setTaskDefKey(key);

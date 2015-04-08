@@ -251,10 +251,12 @@ public class Migrator {
             return false;
         }
 
-        if (reviewRcd.meetingDate != null) {
-            if (!hasTask(status.protocolId, IacucStatus.DistributeSubcommittee.taskDefKey())) {
-                log.error("no subcommittee for protocolId={} ",
-                        status.protocolId);
+        /* "Sub-Committee"
+           don't use meetingDate for testing!!!
+        */
+        if( "Sub-Committee".equalsIgnoreCase(reviewRcd.reviewType) ) {
+            if ( !hasTask(status.protocolId, IacucStatus.DistributeSubcommittee.taskDefKey()) ) {
+                log.error("no subcommittee for protocolId={} ", status.protocolId);
                 return false;
             }
             // go sub-committee
@@ -313,7 +315,6 @@ public class Migrator {
             if( taskId==null ) return false;
             insertToMigratorTable(taskId, status.statusId, status.statusCodeDate);
             if (corrRcd != null) {
-                // insertToCorrTable(taskId, corrRcd.oid, corrRcd.creationDate);
                 insertToAttachedCorrTable(status.statusId, corrRcd.oid, corrRcd.creationDate);
             }
             return false;

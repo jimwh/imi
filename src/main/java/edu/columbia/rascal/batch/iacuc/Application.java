@@ -27,6 +27,7 @@ public class Application {
         // foo.printHistoryByBizKey(10633);
         //
         foo.startup();
+
         SpringApplication.exit(ctx);
         log.info("application done...");
     }

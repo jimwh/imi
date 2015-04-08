@@ -64,6 +64,25 @@ public class Foo {
             " where exists ( select 1 from IACUC_NOTE m where a.ID_=m.TASKID_)";
 
     // select statement
+    private static final String SQL_KAPUT_PROTOCOL_ID = "select distinct IACUCPROTOCOLHEADERPER_OID" +
+    " from IACUCPROTOCOLSTATUS where STATUSCODE <> 'Create'" +
+    " and IACUCPROTOCOLHEADERPER_OID not in (" +
+    " select s.IACUCPROTOCOLHEADERPER_OID" +
+    " from IacucProtocolStatus s" +
+    " where s.STATUSCODE not in ('Create', 'Done', 'ReturnToPI', 'Terminate', 'Withdraw',"+
+    " 'Suspend', 'Approve', 'Notify', 'ChgApprovalDate', 'ChgEffectivDate')" +
+    " and s.OID = (select max(st.OID) from IacucProtocolStatus st where st.IACUCPROTOCOLHEADERPER_OID=s.IACUCPROTOCOLHEADERPER_OID))" +
+    " and OID not in(select STATUSID_ from IACUC_MIGRATOR)" +
+    "order by IACUCPROTOCOLHEADERPER_OID";
+
+    private static final String SQL_IN_PROGRESS_PROTOCOL_HEADER_OID =
+            "select IACUCPROTOCOLHEADERPER_OID from IacucProtocolStatus S" +
+                    " where S.STATUSCODE not in ('Create', 'Done', 'ReturnToPI', 'Terminate', 'Withdraw', 'Suspend', 'Approve', 'Notify', 'ChgApprovalDate', 'ChgEffectivDate')" +
+                    " and S.OID = (select max(st.OID) from IacucProtocolStatus st where st.IACUCPROTOCOLHEADERPER_OID=S.IACUCPROTOCOLHEADERPER_OID)" +
+                    " and s.OID not in (select STATUSID_ from IACUC_MIGRATOR)" +
+                    " order by IACUCPROTOCOLHEADERPER_OID";
+
+
     private static final String SQL_OLD_STATUS = "select OID, STATUSCODE, STATUSCODEDATE, USER_ID, IACUCPROTOCOLHEADERPER_OID, STATUSNOTES, NOTIFICATIONOID, ID" +
             " from IacucProtocolStatus s, RASCAL_USER u, IACUCPROTOCOLSNAPSHOT n" +
             " where s.STATUSSETBY=u.RID" +
@@ -85,15 +104,6 @@ public class Foo {
             " and s.OID not in (select STATUSID_ from IACUC_MIGRATOR where s.OID=to_number(STATUSID_))" +
             " order by STATUSCODEDATE";
 
-    private static final String SQL_KAPUT_STATUS_2 = "select OID, STATUSCODE, STATUSCODEDATE, USER_ID, IACUCPROTOCOLHEADERPER_OID, STATUSNOTES, NOTIFICATIONOID, ID" +
-            " from IacucProtocolStatus s, RASCAL_USER u, IACUCPROTOCOLSNAPSHOT n" +
-            " where s.STATUSSETBY=u.RID" +
-            " and s.IACUCPROTOCOLHEADERPER_OID=?" +
-            " and s.STATUSCODE not in ('Create', 'Submit', 'Distribute', 'ReturnToPI', 'Approve', 'Done'," +
-            " 'Suspend','Terminate','Withdraw','Reinstate', 'ACCMemberHold', 'ACCMemberApprov') " +
-            " and s.OID=n.IACUCPROTOCOLSTATUSID(+)" +
-            " and s.OID not in (select STATUSID_ from IACUC_MIGRATOR where s.OID=to_number(STATUSID_))" +
-            " order by STATUSCODEDATE";
 
     private static final String SQL_PROTOCOL_ID = "select distinct IACUCPROTOCOLHEADERPER_OID" +
             " from IACUCPROTOCOLSTATUS where STATUSCODE <> 'Create' order by IACUCPROTOCOLHEADERPER_OID";
@@ -109,8 +119,9 @@ public class Foo {
             "select OID, IACUCPROTOCOLHEADERPER_OID protocolId, USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
             " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID" +
             " and SUBJECT is not null" +
-            " and length(trim(RECIPIENTS)) <> 0" +
+            " and length(trim(RECIPIENTS)) > 0" +
             " and CORRESPONDENCETEXT is not null" +
+            " and length(trim(CORRESPONDENCETEXT)) > 0"+
             " and OID not in (select STATUSID_ from IACUC_CORR)" +
             " and OID not in (select CORRID_ from IACUC_ATTACHED_CORR) order by OID";
 
@@ -121,12 +132,6 @@ public class Foo {
             " where N.NOTEAUTHOR is not null and U.RID=N.NOTEAUTHOR" +
             " order by N.IACUCPROTOCOLHEADERPER_OID";
 
-
-    private static final String SQL_IN_PROGRESS_PROTOCOL_HEADER_OID =
-            "select IACUCPROTOCOLHEADERPER_OID from IacucProtocolStatus S" +
-            " where S.STATUSCODE not in ('Create', 'Done', 'ReturnToPI', 'Terminate', 'Withdraw', 'Suspend', 'Approve', 'Notify', 'ChgApprovalDate')" +
-            " and S.OID = (select max(st.OID) from IacucProtocolStatus st where st.IACUCPROTOCOLHEADERPER_OID=S.IACUCPROTOCOLHEADERPER_OID)" +
-            " order by IACUCPROTOCOLHEADERPER_OID";
 
     private static final Logger log = LoggerFactory.getLogger(Foo.class);
 
@@ -177,7 +182,11 @@ public class Foo {
         // migrator.insertToAttachedCorrTable("888", "999", new Date());
         List<CorrRcd> list = getAllCorr();
         log.info("size={}", list.size());
-        setInProgressHeaderOid();
+        // setInProgressHeaderOid();
+        List<String> listKaputProtocolId = getListProtocolId(SQL_KAPUT_PROTOCOL_ID);
+        log.info("list of Kaput protocol Id: {}", listKaputProtocolId.size());
+        List<String> listProtocolId = getListProtocolId(SQL_IN_PROGRESS_PROTOCOL_HEADER_OID);
+        log.info("list of in progress protocol Id: {}", listProtocolId.size());
     }
 
     public void test() {
@@ -228,20 +237,36 @@ public class Foo {
         setupTables();
         // updateMigrationTables();
         //
-        // setInProgressHeaderOid();
+        setInProgressHeaderOid();
         //
-        List<String> listProtocolId = getListProtocolId(SQL_PROTOCOL_ID);
+        // first import all kaput status
+        List<String> listKaputProtocolId = getListProtocolId(SQL_KAPUT_PROTOCOL_ID);
+        log.info("number of kaput protocols: {}", listKaputProtocolId.size());
+        importKaputByKaputProtocolId(listKaputProtocolId);
+        //
+        // next in progress status
+        List<String> listProtocolId = getListProtocolId(SQL_IN_PROGRESS_PROTOCOL_HEADER_OID);
         log.info("number of protocols: {}", listProtocolId.size());
         walkThrough(listProtocolId);
+        //
         //
         log.info("import corr...");
         importCorr();
         //
+        //
         log.info("import note...");
         importOldNote();
         //
+        //
         log.info("update migration tables...");
         updateMigrationTables();
+    }
+
+    private void importKaputByKaputProtocolId(List<String> listProtocolId){
+        for (String protocolId : listProtocolId) {
+            List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
+            migrator.importKaput(list);
+        }
     }
 
     private void importCorr() {
