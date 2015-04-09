@@ -45,6 +45,11 @@ public class Migrator {
     private static final String SQL_CORR = "select OID, IACUCPROTOCOLHEADERPER_OID protocolId,  USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
             " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID and c.OID=?";
     //
+    private static final String SQL_ADVERSE_CORR=
+    "select OID, c.IACUCADVERSEEVENT_OID,  USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT"+
+    " from IACUCADVERSEEVENTCORRESPOND c, RASCAL_USER u where c.AUTHORRID=u.RID and c.OID=?";
+
+    //
     private static final String SQL_RV = "select OID,IACUCPROTOCOLSTATUSPER_OID STATUSID,REVIEWTYPE," +
             "(select user_id from Rascal_User where RID=REVIEWER1) A," +
             "(select user_id from Rascal_User where RID=REVIEWER2) B," +
@@ -496,7 +501,6 @@ public class Migrator {
         for (AttachedAppendix a : list) {
             if (!"approve".equals(a.approvalType)) {
                 map.put(IacucProcessService.GetAppendixMapKey(a.appendixType), true);
-                log.info("hasAppendix: {}=true", a.appendixType);
             }
         }
         return map;
@@ -717,6 +721,26 @@ public class Migrator {
                 CorrRcd rcd = new CorrRcd(
                         rs.getString("OID"),
                         rs.getString("protocolId"),
+                        rs.getString("USER_ID"),
+                        rs.getTimestamp("CREATIONDATE"),
+                        rs.getString("RECIPIENTS"),
+                        rs.getString("CARBONCOPIES"),
+                        rs.getString("SUBJECT"),
+                        rs.getString("CORRESPONDENCETEXT")
+                );
+                return rcd;
+            }
+        }, notificationId);
+        return (list == null || list.isEmpty()) ? null : list.get(0);
+    }
+
+    public AdverseCorr getAdverseCorrRcdByNotificationId(String notificationId) {
+        List<AdverseCorr> list = jdbcTemplate.query(SQL_ADVERSE_CORR, new RowMapper<AdverseCorr>() {
+            @Override
+            public AdverseCorr mapRow(ResultSet rs, int rowNum) throws SQLException {
+                AdverseCorr rcd = new AdverseCorr(
+                        rs.getString("OID"),
+                        rs.getString("IACUCADVERSEEVENT_OID"),
                         rs.getString("USER_ID"),
                         rs.getTimestamp("CREATIONDATE"),
                         rs.getString("RECIPIENTS"),

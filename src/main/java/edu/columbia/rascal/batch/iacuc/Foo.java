@@ -2,6 +2,7 @@ package edu.columbia.rascal.batch.iacuc;
 
 import edu.columbia.rascal.business.service.Migrator;
 import edu.columbia.rascal.business.service.review.iacuc.IacucTaskForm;
+import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,15 +66,15 @@ public class Foo {
 
     // select statement
     private static final String SQL_KAPUT_PROTOCOL_ID = "select distinct IACUCPROTOCOLHEADERPER_OID" +
-    " from IACUCPROTOCOLSTATUS where STATUSCODE <> 'Create'" +
-    " and IACUCPROTOCOLHEADERPER_OID not in (" +
-    " select s.IACUCPROTOCOLHEADERPER_OID" +
-    " from IacucProtocolStatus s" +
-    " where s.STATUSCODE not in ('Create', 'Done', 'ReturnToPI', 'Terminate', 'Withdraw',"+
-    " 'Suspend', 'Approve', 'Notify', 'ChgApprovalDate', 'ChgEffectivDate')" +
-    " and s.OID = (select max(st.OID) from IacucProtocolStatus st where st.IACUCPROTOCOLHEADERPER_OID=s.IACUCPROTOCOLHEADERPER_OID))" +
-    " and OID not in(select STATUSID_ from IACUC_MIGRATOR)" +
-    "order by IACUCPROTOCOLHEADERPER_OID";
+            " from IACUCPROTOCOLSTATUS where STATUSCODE <> 'Create'" +
+            " and IACUCPROTOCOLHEADERPER_OID not in (" +
+            " select s.IACUCPROTOCOLHEADERPER_OID" +
+            " from IacucProtocolStatus s" +
+            " where s.STATUSCODE not in ('Create', 'Done', 'ReturnToPI', 'Terminate', 'Withdraw'," +
+            " 'Suspend', 'Approve', 'Notify', 'ChgApprovalDate', 'ChgEffectivDate')" +
+            " and s.OID = (select max(st.OID) from IacucProtocolStatus st where st.IACUCPROTOCOLHEADERPER_OID=s.IACUCPROTOCOLHEADERPER_OID))" +
+            " and OID not in(select STATUSID_ from IACUC_MIGRATOR)" +
+            "order by IACUCPROTOCOLHEADERPER_OID";
 
     private static final String SQL_IN_PROGRESS_PROTOCOL_HEADER_OID =
             "select IACUCPROTOCOLHEADERPER_OID from IacucProtocolStatus S" +
@@ -82,7 +83,7 @@ public class Foo {
                     " and s.OID not in (select STATUSID_ from IACUC_MIGRATOR)" +
                     " order by IACUCPROTOCOLHEADERPER_OID";
 
-
+    /*
     private static final String SQL_OLD_STATUS = "select OID, STATUSCODE, STATUSCODEDATE, USER_ID, IACUCPROTOCOLHEADERPER_OID, STATUSNOTES, NOTIFICATIONOID, ID" +
             " from IacucProtocolStatus s, RASCAL_USER u, IACUCPROTOCOLSNAPSHOT n" +
             " where s.STATUSSETBY=u.RID" +
@@ -94,6 +95,7 @@ public class Foo {
             " and s.OID=n.IACUCPROTOCOLSTATUSID(+)" +
             " and s.OID not in (select STATUSID_ from IACUC_MIGRATOR where s.OID=to_number(STATUSID_) )" +
             " order by STATUSCODEDATE";
+    */
 
     private static final String SQL_KAPUT_STATUS_1 = "select OID, STATUSCODE, STATUSCODEDATE, USER_ID, IACUCPROTOCOLHEADERPER_OID, STATUSNOTES, NOTIFICATIONOID, ID" +
             " from IacucProtocolStatus s, RASCAL_USER u, IACUCPROTOCOLSNAPSHOT n" +
@@ -105,6 +107,7 @@ public class Foo {
             " order by STATUSCODEDATE";
 
 
+    /*
     private static final String SQL_PROTOCOL_ID = "select distinct IACUCPROTOCOLHEADERPER_OID" +
             " from IACUCPROTOCOLSTATUS where STATUSCODE <> 'Create' order by IACUCPROTOCOLHEADERPER_OID";
 
@@ -112,31 +115,57 @@ public class Foo {
             " from IACUCPROTOCOLSTATUS s" +
             " where EXISTS (select 1 from IACUC_IMI imi where s.OID= to_number(imi.statusid_) )" +
             " order by IACUCPROTOCOLHEADERPER_OID";
+    */
 
     // IACUC_CORR table STATUSID_ <-- CORR OID
     // IACUC_ATTACHED_CORR table CORRID_ <-- CORR OID
     private static final String SQL_ALLCORR =
             "select OID, IACUCPROTOCOLHEADERPER_OID protocolId, USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
-            " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID" +
-            " and SUBJECT is not null" +
-            " and length(trim(RECIPIENTS)) > 0" +
-            " and CORRESPONDENCETEXT is not null" +
-            " and length(trim(CORRESPONDENCETEXT)) > 0"+
-            " and OID not in (select STATUSID_ from IACUC_CORR)" +
-            " and OID not in (select CORRID_ from IACUC_ATTACHED_CORR) order by OID";
+                    " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID" +
+                    " and SUBJECT is not null" +
+                    " and length(trim(RECIPIENTS)) > 0" +
+                    " and CORRESPONDENCETEXT is not null" +
+                    " and length(trim(CORRESPONDENCETEXT)) > 0" +
+                    " and OID not in (select STATUSID_ from IACUC_CORR)" +
+                    " and OID not in (select CORRID_ from IACUC_ATTACHED_CORR) order by OID";
 
 
     private static final String SQL_OLD_NOTE =
             "select OID, N.IACUCPROTOCOLHEADERPER_OID, U.USER_ID, N.NOTETEXT, N.LASTMODIFICATIONDATE" +
-            " from IACUCPROTOCOLNOTES N, RASCAL_USER U" +
-            " where N.NOTEAUTHOR is not null and U.RID=N.NOTEAUTHOR" +
-            " order by N.IACUCPROTOCOLHEADERPER_OID";
+                    " from IACUCPROTOCOLNOTES N, RASCAL_USER U" +
+                    " where N.NOTEAUTHOR is not null and U.RID=N.NOTEAUTHOR" +
+                    " order by N.IACUCPROTOCOLHEADERPER_OID";
 
+
+    private static final String SQL_ADVERSE_KAPUT_EVT_OID =
+            "select distinct IACUCADVERSEEVENT_OID from IacucAdverseEventStatus where STATUSCODE<>'Create'" +
+                    " and IACUCADVERSEEVENT_OID not in(" +
+                    " select SS.IACUCADVERSEEVENT_OID" +
+                    " from IacucAdverseEventStatus SS" +
+                    " where SS.STATUSCODE not in ('Create', 'ACCMemberApprov', 'Done', 'ReturnToPI', 'Withdraw','Approve', 'ChgMeetingDate', 'ClosedNoFurther', 'FurtherActionReturnToPI')" +
+                    " and SS.OID = (select max(ST.OID) from IacucAdverseEventStatus ST where ST.IACUCADVERSEEVENT_OID=SS.IACUCADVERSEEVENT_OID)" +
+                    " ) order by IACUCADVERSEEVENT_OID";
+
+
+    private static final String SQL_IN_PROGRESS_ADVERSE_ID =
+            "select S.IACUCADVERSEEVENT_OID from IacucAdverseEventStatus S" +
+                    " where S.STATUSCODE not " +
+                    " in ('Create', 'ACCMemberApprov', 'Done', 'ReturnToPI', 'Withdraw','Approve', 'ChgMeetingDate', 'ClosedNoFurther', 'FurtherActionReturnToPI')" +
+                    " and S.OID = (select max(ST.OID) from IacucAdverseEventStatus ST where ST.IACUCADVERSEEVENT_OID=S.IACUCADVERSEEVENT_OID)" +
+                    " order by S.IACUCADVERSEEVENT_OID";
+
+    private static final String SQL_ADVERSE_STATUS=
+    "select OID, STATUSCODE, STATUSCODEDATE, USER_ID, s.IACUCADVERSEEVENT_OID, STATUSNOTES, NOTIFICATIONOID, ID"+
+    " from IACUCADVERSEEVENTSTATUS s, RASCAL_USER u, IACUCADVERSEEVENTSNAPSHOT n"+
+    " where s.STATUSSETBY=u.RID"+
+    " and s.IACUCADVERSEEVENT_OID=?"+
+    " and s.STATUSCODE<>'Create'"+
+    " and s.OID=n.IACUCADVERSEEVENTSTATUSID(+)"+
+    " order by STATUSCODEDATE";
 
     private static final Logger log = LoggerFactory.getLogger(Foo.class);
 
     private static final Set<String> EndSet = new HashSet<String>();
-
     static {
         EndSet.add("Withdraw");
         EndSet.add("ReturnToPI");
@@ -165,7 +194,18 @@ public class Foo {
         EndSet.add("VetPreApproveF");
     }
 
-    private static final Set<String>InProgressHeaderOid=new HashSet<String>();
+    private static final Set<String> InProgressHeaderOid = new HashSet<String>();
+    private static final Set<String>AdverseEndSet=new HashSet<String>();
+    static {
+        AdverseEndSet.add("ACCMemberApprov");
+        AdverseEndSet.add("Done");
+        AdverseEndSet.add("ReturnToPI");
+        AdverseEndSet.add("Withdraw");
+        AdverseEndSet.add("Approve");
+        AdverseEndSet.add("ChgMeetingDate");
+        AdverseEndSet.add("ClosedNoFurther");
+        AdverseEndSet.add("FurtherActionReturnToPI");
+    }
 
     private final JdbcTemplate jdbcTemplate;
     @Resource
@@ -176,6 +216,43 @@ public class Foo {
         this.jdbcTemplate = jt;
     }
 
+    public void testAdverse() {
+        int notificationIdCount=0;
+        List<String> adverseIdKaputList = getAdverseIdList(SQL_ADVERSE_KAPUT_EVT_OID);
+        log.info("kaput IACUCADVERSEEVENT_OID size={}", adverseIdKaputList.size());
+        for (String id : adverseIdKaputList) {
+            List<OldAdverseStatus> oldAdverseStatusList=getOldAdverseStatusByAdverseId(id, SQL_ADVERSE_STATUS);
+            log.info("status size={}", oldAdverseStatusList.size());
+            for(OldAdverseStatus oldAdverseStatus: oldAdverseStatusList) {
+                log.info("adverseStatus={}", oldAdverseStatus);
+                if( !StringUtils.isBlank(oldAdverseStatus.notificationId) ) {
+                    notificationIdCount+=1;
+                    log.info("notificationId={}", oldAdverseStatus.notificationId);
+                    AdverseCorr adverseCorr=migrator.getAdverseCorrRcdByNotificationId(oldAdverseStatus.notificationId);
+                    log.info("adverseCorr={}", adverseCorr);
+                }
+            }
+        }
+
+        //
+        List<String> adverseIdInprogressList = getAdverseIdList(SQL_IN_PROGRESS_ADVERSE_ID);
+        log.info("in progress IACUCADVERSEEVENT_OID size={}", adverseIdInprogressList.size());
+        for (String id : adverseIdInprogressList) {
+            List<OldAdverseStatus> oldAdverseStatusList=getOldAdverseStatusByAdverseId(id, SQL_ADVERSE_STATUS);
+            log.info("status size={}", oldAdverseStatusList.size());
+            for(OldAdverseStatus oldAdverseStatus: oldAdverseStatusList) {
+                log.info("adverseStatus={}", oldAdverseStatus);
+                if( !StringUtils.isBlank(oldAdverseStatus.notificationId) ) {
+                    notificationIdCount+=1;
+                    log.info("notificationId={}", oldAdverseStatus.notificationId);
+                    AdverseCorr adverseCorr=migrator.getAdverseCorrRcdByNotificationId(oldAdverseStatus.notificationId);
+                    log.info("adverseCorr={}", adverseCorr);
+                }
+            }
+        }
+
+        log.info("number of notifications={}", notificationIdCount);
+    }
 
     public void testTables() {
         setupTables();
@@ -262,7 +339,7 @@ public class Foo {
         updateMigrationTables();
     }
 
-    private void importKaputByKaputProtocolId(List<String> listProtocolId){
+    private void importKaputByKaputProtocolId(List<String> listProtocolId) {
         for (String protocolId : listProtocolId) {
             List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
             migrator.importKaput(list);
@@ -292,7 +369,7 @@ public class Foo {
         for (String protocolId : listProtocolId) {
             List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
 
-            if( !InProgressHeaderOid.contains(protocolId) ) {
+            if (!InProgressHeaderOid.contains(protocolId)) {
                 migrator.importKaput(list);
                 continue;
             }
@@ -303,14 +380,13 @@ public class Foo {
             int lastIndex = list.size() - 1;
             OldStatus lastStatus = list.get(lastIndex);
             if (EndSet.contains(lastStatus.statusCode)) {
-                // log.info("lastIndex={}, lastStatus={}", lastIndex, lastStatus);
                 migrator.importKaput(list);
                 continue;
-            }else {
+            } else {
                 lastIndex -= 1;
-                if(lastIndex> - 1) {
+                if (lastIndex > -1) {
                     lastStatus = list.get(lastIndex);
-                    if( lastStatus != null ) {
+                    if (lastStatus != null) {
                         if ("Done".equals(lastStatus.statusCode) || "Approve".equals(lastStatus.statusCode)) {
                             migrator.importKaput(list);
                             continue;
@@ -319,7 +395,6 @@ public class Foo {
                 }
             }
 
-            log.info("walk through...");
             // move from bottom up to Submit status
             Deque<OldStatus> deque = new LinkedList<OldStatus>();
 
@@ -338,12 +413,10 @@ public class Foo {
                 }
             }
             if (!list.isEmpty()) {
-                //log.info("left over list.size={}", list.size());
                 migrator.importKaput(list);
             }
 
             if (!deque.isEmpty()) {
-                //log.info("deque.size={}", deque.size());
                 migrator.migrateReviewInProgress(deque);
             }
         }
@@ -380,6 +453,27 @@ public class Foo {
         return this.jdbcTemplate.query(sql, mapper, protocolId);
     }
 
+    private List<OldAdverseStatus> getOldAdverseStatusByAdverseId(String adverseId, String sql) {
+
+        RowMapper<OldAdverseStatus> mapper = new RowMapper<OldAdverseStatus>() {
+            @Override
+            public OldAdverseStatus mapRow(ResultSet rs, int rowNum) throws SQLException {
+                OldAdverseStatus rcd = new OldAdverseStatus(
+                        rs.getString("OID"),
+                        rs.getString("STATUSCODE"),
+                        rs.getTimestamp("STATUSCODEDATE"),
+                        rs.getString("USER_ID"),
+                        rs.getString("IACUCADVERSEEVENT_OID"),
+                        rs.getString("STATUSNOTES"),
+                        rs.getString("NOTIFICATIONOID"),
+                        rs.getString("ID")
+                );
+                return rcd;
+            }
+        };
+        return this.jdbcTemplate.query(sql, mapper, adverseId);
+    }
+
     private void setInProgressHeaderOid() {
         List<String> list = getListProtocolId(SQL_IN_PROGRESS_PROTOCOL_HEADER_OID);
         log.info("in progress size={}", list.size());
@@ -391,6 +485,16 @@ public class Foo {
             @Override
             public String mapRow(ResultSet rs, int rowNum) throws SQLException {
                 return rs.getString("IACUCPROTOCOLHEADERPER_OID");
+            }
+        };
+        return this.jdbcTemplate.query(sql, mapper);
+    }
+
+    public List<String> getAdverseIdList(String sql) {
+        RowMapper<String> mapper = new RowMapper<String>() {
+            @Override
+            public String mapRow(ResultSet rs, int rowNum) throws SQLException {
+                return rs.getString("IACUCADVERSEEVENT_OID");
             }
         };
         return this.jdbcTemplate.query(sql, mapper);
@@ -499,7 +603,7 @@ public class Foo {
             log.info("creating IACUC_CORR table ...");
             createCorrTable();
         }
-        if ( !hasAttachedCorrTable() ) {
+        if (!hasAttachedCorrTable()) {
             log.info("creating IACUC_ATTACHED_CORR table ...");
             createAttachedCorrTable();
         }
@@ -518,14 +622,14 @@ public class Foo {
     public void printHistoryByBizKey(String protocolId) {
         List<IacucTaskForm> list = migrator.getIacucProtocolHistory(protocolId);
         for (IacucTaskForm form : list) {
-            log.info( form.toString() );
+            log.info(form.toString());
         }
     }
 
     public void printHistoryByBizKey(int protocolId) {
-        List<IacucTaskForm> list = migrator.getIacucProtocolHistory( String.valueOf(protocolId) );
+        List<IacucTaskForm> list = migrator.getIacucProtocolHistory(String.valueOf(protocolId));
         for (IacucTaskForm form : list) {
-            log.info("taskDefKey={}, taskName={}, endTime={}", form.getTaskDefKey(),form.getTaskName(), form.getEndTimeString() );
+            log.info("taskDefKey={}, taskName={}, endTime={}", form.getTaskDefKey(), form.getTaskName(), form.getEndTimeString());
         }
     }
 

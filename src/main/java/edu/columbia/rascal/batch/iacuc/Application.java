@@ -26,7 +26,9 @@ public class Application {
         // foo.testTables();
         // foo.printHistoryByBizKey(10633);
         //
-        foo.startup();
+        // foo.startup();
+        //
+        foo.testAdverse();
 
         SpringApplication.exit(ctx);
         log.info("application done...");

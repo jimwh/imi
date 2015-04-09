@@ -37,9 +37,10 @@
         <property name="transactionManager" ref="transactionManager"/>
         <property name="databaseSchemaUpdate" value="false"/>
 
+        <!--
+
         <property name="deploymentResources" value="classpath*:/IacucApprovalProcess.bpmn20.xml" />
 
-        <!--
                 <property name="asyncExecutorEnabled" value="true" />
                 <property name="asyncExecutorActivate" value="true" />
         -->
