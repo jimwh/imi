@@ -20,14 +20,24 @@ public class Foo {
 
     // test tables
     private static final String SQL_TABLE_MIGRATOR = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_MIGRATOR'";
+
+    private static final String SQL_TABLE_ADVERSE_MIGRATOR = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_ADVERSE_MIGRATOR'";
+
     private static final String SQL_TABLE_IMI = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_IMI'";
     private static final String SQL_TABLE_CORR = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_CORR'";
     private static final String SQL_TABLE_NOTE = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_NOTE'";
     private static final String SQL_TABLE_ATTACHED_CORR = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_ATTACHED_CORR'";
+    private static final String SQL_TABLE_ADVERSE_ATTACHED_CORR = "select count(1) from ALL_TABLES where TABLE_NAME='IACUC_ADVERSE_ATTACHED_CORR'";
 
     // create tables
-    private static final String SQL_CREATE_MIGRATOR = "CREATE table IACUC_MIGRATOR (TASKID_ NVARCHAR2(64) NOT NULL," +
+    private static final String SQL_CREATE_MIGRATOR =
+            "CREATE table IACUC_MIGRATOR (TASKID_ NVARCHAR2(64) NOT NULL," +
             "STATUSID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
+
+    private static final String SQL_CREATE_ADVERSE_MIGRATOR =
+            "CREATE table IACUC_ADVERSE_MIGRATOR (TASKID_ NVARCHAR2(64) NOT NULL," +
+            "STATUSID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL," +
+            "CONSTRAINT adverse_mi_pk PRIMARY KEY (TASKID_))";
 
     private static final String SQL_CREATE_CORR = "CREATE table IACUC_CORR(TASKID_ NVARCHAR2(64) NOT NULL," +
             "STATUSID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
@@ -36,10 +46,16 @@ public class Foo {
     private static final String SQL_CREATE_ATTACHED_CORR = "CREATE table IACUC_ATTACHED_CORR(" +
             "STATUSID_ NVARCHAR2(10) NOT NULL, CORRID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
 
+    private static final String SQL_CREATE_ADVERSE_ATTACHED_CORR = "CREATE table IACUC_ADVERSE_ATTACHED_CORR(" +
+            "STATUSID_ NVARCHAR2(10) NOT NULL, CORRID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
+
+
     private static final String SQL_CREATE_NOTE = "CREATE table IACUC_NOTE(TASKID_ NVARCHAR2(64) NOT NULL," +
             "STATUSID_ NVARCHAR2(10) NOT NULL, DATE_ TIMESTAMP(6) NOT NULL)";
 
-    private static final String SQL_CREATE_IMI = "CREATE table IACUC_IMI(POID_ NVARCHAR2(10) NOT NULL, STATUSID_ NVARCHAR2(10) NOT NULL)";
+    private static final String SQL_CREATE_IMI =
+            "CREATE table IACUC_IMI(POID_ NVARCHAR2(10) NOT NULL, STATUSID_ NVARCHAR2(10) NOT NULL,"+
+            "CONSTRAINT imi_pk PRIMARY KEY (POID_))";
 
     // drop tables
     private static final String SQL_DROP_MIGRATOR = "drop table IACUC_MIGRATOR purge";
@@ -47,12 +63,18 @@ public class Foo {
     private static final String SQL_DROP_NOTE = "drop table IACUC_NOTE purge";
     private static final String SQL_DROP_CORR = "drop table IACUC_CORR purge";
     private static final String SQL_DROP_ATTACHED_CORR = "drop table IACUC_ATTACHED_CORR purge";
+    private static final String SQL_DROP_ADVERSE_ATTACHED_CORR = "drop table IACUC_ADVERSE_ATTACHED_CORR purge";
 
     // update table ACT_HI_TASKINST
     private static final String SQL_UPDATE_MIGRATOR = "update ACT_HI_TASKINST a" +
             " set (a.START_TIME_, a.END_TIME_, a.CLAIM_TIME_)=" +
             " (select m.DATE_, m.DATE_, m.DATE_ from IACUC_MIGRATOR m where a.ID_=m.TASKID_)" +
             " where exists ( select 1 from IACUC_MIGRATOR m where a.ID_=m.TASKID_)";
+
+    private static final String SQL_UPDATE_ADVERSE_MIGRATOR = "update ACT_HI_TASKINST a" +
+            " set (a.START_TIME_, a.END_TIME_, a.CLAIM_TIME_)=" +
+            " (select m.DATE_, m.DATE_, m.DATE_ from IACUC_ADVERSE_MIGRATOR m where a.ID_=m.TASKID_)" +
+            " where exists ( select 1 from IACUC_ADVERSE_MIGRATOR m where a.ID_=m.TASKID_)";
 
     private static final String SQL_UPDATE_CORR = "update ACT_HI_TASKINST a" +
             " set (a.START_TIME_, a.END_TIME_, a.CLAIM_TIME_)=" +
@@ -154,18 +176,19 @@ public class Foo {
                     " and S.OID = (select max(ST.OID) from IacucAdverseEventStatus ST where ST.IACUCADVERSEEVENT_OID=S.IACUCADVERSEEVENT_OID)" +
                     " order by S.IACUCADVERSEEVENT_OID";
 
-    private static final String SQL_ADVERSE_STATUS=
-    "select OID, STATUSCODE, STATUSCODEDATE, USER_ID, s.IACUCADVERSEEVENT_OID, STATUSNOTES, NOTIFICATIONOID, ID"+
-    " from IACUCADVERSEEVENTSTATUS s, RASCAL_USER u, IACUCADVERSEEVENTSNAPSHOT n"+
-    " where s.STATUSSETBY=u.RID"+
-    " and s.IACUCADVERSEEVENT_OID=?"+
-    " and s.STATUSCODE<>'Create'"+
-    " and s.OID=n.IACUCADVERSEEVENTSTATUSID(+)"+
-    " order by STATUSCODEDATE";
+    private static final String SQL_ADVERSE_STATUS =
+            "select OID, STATUSCODE, STATUSCODEDATE, USER_ID, s.IACUCADVERSEEVENT_OID, STATUSNOTES, NOTIFICATIONOID, ID" +
+                    " from IACUCADVERSEEVENTSTATUS s, RASCAL_USER u, IACUCADVERSEEVENTSNAPSHOT n" +
+                    " where s.STATUSSETBY=u.RID" +
+                    " and s.IACUCADVERSEEVENT_OID=?" +
+                    " and s.STATUSCODE<>'Create'" +
+                    " and s.OID=n.IACUCADVERSEEVENTSTATUSID(+)" +
+                    " order by STATUSCODEDATE";
 
     private static final Logger log = LoggerFactory.getLogger(Foo.class);
 
     private static final Set<String> EndSet = new HashSet<String>();
+
     static {
         EndSet.add("Withdraw");
         EndSet.add("ReturnToPI");
@@ -195,7 +218,8 @@ public class Foo {
     }
 
     private static final Set<String> InProgressHeaderOid = new HashSet<String>();
-    private static final Set<String>AdverseEndSet=new HashSet<String>();
+    private static final Set<String> AdverseEndSet = new HashSet<String>();
+
     static {
         AdverseEndSet.add("ACCMemberApprov");
         AdverseEndSet.add("Done");
@@ -217,18 +241,19 @@ public class Foo {
     }
 
     public void testAdverse() {
-        int notificationIdCount=0;
+
+        int notificationIdCount = 0;
         List<String> adverseIdKaputList = getAdverseIdList(SQL_ADVERSE_KAPUT_EVT_OID);
         log.info("kaput IACUCADVERSEEVENT_OID size={}", adverseIdKaputList.size());
         for (String id : adverseIdKaputList) {
-            List<OldAdverseStatus> oldAdverseStatusList=getOldAdverseStatusByAdverseId(id, SQL_ADVERSE_STATUS);
+            List<OldAdverseStatus> oldAdverseStatusList = getOldAdverseStatusByAdverseId(id, SQL_ADVERSE_STATUS);
             log.info("status size={}", oldAdverseStatusList.size());
-            for(OldAdverseStatus oldAdverseStatus: oldAdverseStatusList) {
+            for (OldAdverseStatus oldAdverseStatus : oldAdverseStatusList) {
                 log.info("adverseStatus={}", oldAdverseStatus);
-                if( !StringUtils.isBlank(oldAdverseStatus.notificationId) ) {
-                    notificationIdCount+=1;
+                if (!StringUtils.isBlank(oldAdverseStatus.notificationId)) {
+                    notificationIdCount += 1;
                     log.info("notificationId={}", oldAdverseStatus.notificationId);
-                    AdverseCorr adverseCorr=migrator.getAdverseCorrRcdByNotificationId(oldAdverseStatus.notificationId);
+                    AdverseCorr adverseCorr = migrator.getAdverseCorrRcdByNotificationId(oldAdverseStatus.notificationId);
                     log.info("adverseCorr={}", adverseCorr);
                 }
             }
@@ -238,14 +263,14 @@ public class Foo {
         List<String> adverseIdInprogressList = getAdverseIdList(SQL_IN_PROGRESS_ADVERSE_ID);
         log.info("in progress IACUCADVERSEEVENT_OID size={}", adverseIdInprogressList.size());
         for (String id : adverseIdInprogressList) {
-            List<OldAdverseStatus> oldAdverseStatusList=getOldAdverseStatusByAdverseId(id, SQL_ADVERSE_STATUS);
+            List<OldAdverseStatus> oldAdverseStatusList = getOldAdverseStatusByAdverseId(id, SQL_ADVERSE_STATUS);
             log.info("status size={}", oldAdverseStatusList.size());
-            for(OldAdverseStatus oldAdverseStatus: oldAdverseStatusList) {
+            for (OldAdverseStatus oldAdverseStatus : oldAdverseStatusList) {
                 log.info("adverseStatus={}", oldAdverseStatus);
-                if( !StringUtils.isBlank(oldAdverseStatus.notificationId) ) {
-                    notificationIdCount+=1;
+                if (!StringUtils.isBlank(oldAdverseStatus.notificationId)) {
+                    notificationIdCount += 1;
                     log.info("notificationId={}", oldAdverseStatus.notificationId);
-                    AdverseCorr adverseCorr=migrator.getAdverseCorrRcdByNotificationId(oldAdverseStatus.notificationId);
+                    AdverseCorr adverseCorr = migrator.getAdverseCorrRcdByNotificationId(oldAdverseStatus.notificationId);
                     log.info("adverseCorr={}", adverseCorr);
                 }
             }
@@ -254,16 +279,26 @@ public class Foo {
         log.info("number of notifications={}", notificationIdCount);
     }
 
+    public void testKaputAdverse() {
+        setupTables();
+        String adverseId = "3";
+        List<OldAdverseStatus> oldAdverseStatusList = getOldAdverseStatusByAdverseId(adverseId, SQL_ADVERSE_STATUS);
+        log.info("status size={}", oldAdverseStatusList.size());
+        // migrator.importKaputAdverse(oldAdverseStatusList);
+        jdbcTemplate.execute(SQL_UPDATE_MIGRATOR);
+        List<IacucTaskForm> list=migrator.getIacucAdverseHistory(adverseId);
+        for(IacucTaskForm form: list) {
+            log.info( form.toString() );
+        }
+    }
+
+
     public void testTables() {
         setupTables();
-        // migrator.insertToAttachedCorrTable("888", "999", new Date());
-        List<CorrRcd> list = getAllCorr();
-        log.info("size={}", list.size());
-        // setInProgressHeaderOid();
-        List<String> listKaputProtocolId = getListProtocolId(SQL_KAPUT_PROTOCOL_ID);
-        log.info("list of Kaput protocol Id: {}", listKaputProtocolId.size());
-        List<String> listProtocolId = getListProtocolId(SQL_IN_PROGRESS_PROTOCOL_HEADER_OID);
-        log.info("list of in progress protocol Id: {}", listProtocolId.size());
+        if( !hasImiTable() ) {
+            createImiTable();
+        }
+        migrator.insertToImiTable("1", "1");
     }
 
     public void test() {
@@ -343,6 +378,13 @@ public class Foo {
         for (String protocolId : listProtocolId) {
             List<OldStatus> list = getOldStatusByProtocolId(protocolId, SQL_KAPUT_STATUS_1);
             migrator.importKaput(list);
+        }
+    }
+
+    private void importKaputByKaputAdverseId(List<String> adverseIdList) {
+        for (String adverseId : adverseIdList) {
+            List<OldAdverseStatus> list = getOldAdverseStatusByAdverseId(adverseId, SQL_ADVERSE_STATUS);
+            migrator.importKaputAdverse(list);
         }
     }
 
@@ -427,6 +469,7 @@ public class Foo {
             jdbcTemplate.execute(SQL_UPDATE_MIGRATOR);
             jdbcTemplate.execute(SQL_UPDATE_CORR);
             jdbcTemplate.execute(SQL_UPDATE_NOTE);
+            jdbcTemplate.execute(SQL_UPDATE_ADVERSE_MIGRATOR);
         } catch (Exception e) {
             log.error("err in update table:", e);
         }
@@ -505,6 +548,11 @@ public class Foo {
         return one == 1;
     }
 
+    private boolean hasAdverseMigratorTable() {
+        int one = jdbcTemplate.queryForObject(SQL_TABLE_ADVERSE_MIGRATOR, Integer.class);
+        return one == 1;
+    }
+
     private boolean hasCorrTable() {
         int one = jdbcTemplate.queryForObject(SQL_TABLE_CORR, Integer.class);
         return one == 1;
@@ -512,6 +560,11 @@ public class Foo {
 
     private boolean hasAttachedCorrTable() {
         int one = jdbcTemplate.queryForObject(SQL_TABLE_ATTACHED_CORR, Integer.class);
+        return one == 1;
+    }
+
+    private boolean hasAdverseAttachedCorrTable() {
+        int one = jdbcTemplate.queryForObject(SQL_TABLE_ADVERSE_ATTACHED_CORR, Integer.class);
         return one == 1;
     }
 
@@ -525,9 +578,9 @@ public class Foo {
         return one == 1;
     }
 
-    private void createMigratorTable() {
-        jdbcTemplate.execute(SQL_CREATE_MIGRATOR);
-    }
+    private void createMigratorTable() { jdbcTemplate.execute(SQL_CREATE_MIGRATOR); }
+
+    private void createAdverseMigratorTable() { jdbcTemplate.execute(SQL_CREATE_ADVERSE_MIGRATOR); }
 
     private void createCorrTable() {
         jdbcTemplate.execute(SQL_CREATE_CORR);
@@ -536,6 +589,8 @@ public class Foo {
     private void createAttachedCorrTable() {
         jdbcTemplate.execute(SQL_CREATE_ATTACHED_CORR);
     }
+
+    private void createAdverseAttachedCorrTable() { jdbcTemplate.execute(SQL_CREATE_ADVERSE_ATTACHED_CORR); }
 
     private void createImiTable() {
         jdbcTemplate.execute(SQL_CREATE_IMI);
@@ -599,19 +654,32 @@ public class Foo {
             log.info("creating IACUC_MIGRATOR table ...");
             createMigratorTable();
         }
+
+        if ( !hasAdverseMigratorTable() ) {
+            log.info("creating IACUC_ADVERSE_MIGRATOR table ...");
+            createAdverseMigratorTable();
+        }
+
         if (!hasCorrTable()) {
             log.info("creating IACUC_CORR table ...");
             createCorrTable();
         }
+
         if (!hasAttachedCorrTable()) {
             log.info("creating IACUC_ATTACHED_CORR table ...");
             createAttachedCorrTable();
+        }
+
+        if (!hasAdverseAttachedCorrTable()) {
+            log.info("creating IACUC_ADVERSE_ATTACHED_CORR table ...");
+            createAdverseAttachedCorrTable();
         }
 
         if (!hasImiTable()) {
             log.info("creating IACUC_IMI table ...");
             createImiTable();
         }
+
         if (!hasNoteTable()) {
             log.info("creating IACUC_NOTE table ...");
             createNoteTable();

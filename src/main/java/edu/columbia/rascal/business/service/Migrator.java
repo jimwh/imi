@@ -25,22 +25,34 @@ import java.sql.SQLException;
 import java.util.*;
 
 
-/**
- * kaput the status should cover ALL names in the view history page
- */
 @Service
 public class Migrator {
 
     private static final Logger log = LoggerFactory.getLogger(Migrator.class);
 
     private static final String SQL_INSERT_MIGRATOR = "insert into IACUC_MIGRATOR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
+    private static final String SQL_INSERT_ADVERSE_MIGRATOR = "insert into IACUC_ADVERSE_MIGRATOR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
+
     private static final String SQL_INSERT_CORR = "insert into IACUC_CORR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
     private static final String SQL_INSERT_ATTACHED_CORR = "insert into IACUC_ATTACHED_CORR (STATUSID_, CORRID_, DATE_) VALUES (?, ?, ?)";
+    private static final String SQL_INSERT_ADVERSE_ATTACHED_CORR = "insert into IACUC_ADVERSE_ATTACHED_CORR (STATUSID_, CORRID_, DATE_) VALUES (?, ?, ?)";
 
     private static final String SQL_INSERT_NOTE = "insert into IACUC_NOTE (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
+
     private static final String SQL_INSERT_IMI = "insert into IACUC_IMI (POID_, STATUSID_) VALUES (?, ?)";
+    /*
+    private static final String SQL_INSERT_IMI =
+            "insert into IACUC_IMI (POID_, STATUSID_)" +
+            " select :POID_, :STATUSID_ from dual" +
+            " where not exists (select 1 from IACUC_IMI where POID_=:POID_)";
+
+    private static final String SQL_INSERT_IMI =
+    "MERGE INTO IACUC_IMI a USING DUAL ON (a.POID_= :1)"+
+    " WHEN NOT MATCHED THEN INSERT(POID_, STATUSID_) VALUES (:2, :3)";
+    */
 
     private static final String SQL_SNAPSHOT = "select CREATIONDATE, FILECONTEXT from IACUCPROTOCOLSNAPSHOT where ID=?";
+    private static final String SQL_ADVERSE_SNAPSHOT = "select CREATIONDATE, FILECONTEXT from IACUCADVERSEEVENTSNAPSHOT where ID=?";
     //
     private static final String SQL_CORR = "select OID, IACUCPROTOCOLHEADERPER_OID protocolId,  USER_ID, CREATIONDATE, RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT" +
             " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID and c.OID=?";
@@ -62,8 +74,10 @@ public class Migrator {
             "and t.OWNEROID=?";
 
 
+    /**
+     * kaput the status should cover ALL names in the view history page
+     */
     private static final Map<String, String> CodeToName = new HashMap<String, String>();
-
     static {
         CodeToName.put("ACCMemberApprov", IacucStatus.Rv1Approval.statusName());
         CodeToName.put("ACCMemberHold", IacucStatus.Rv1Hold.statusName());
@@ -104,17 +118,6 @@ public class Migrator {
         this.jdbcTemplate = jt;
     }
 
-    public void startup() {
-        CorrRcd corr = getCorrRcdByNotificationId("5");
-        log.info("corr: subject={}", corr.subject);
-        ReviewRcd reviewRcd = getReviewRcdByStatusId("237");
-        log.info("reviewRcd: reviewType={}", reviewRcd.reviewType);
-        List<IacucTaskForm> list = getIacucProtocolHistory("166");
-        for (IacucTaskForm hs : list) {
-            log.info(hs.getTaskName() + ", " + hs.getEndTimeString());
-        }
-    }
-
     public void importKaput(List<OldStatus> kaputList) {
         Map<String, Object>processInput=new HashMap<String, Object>();
         int kaputCount=kaputList.size();
@@ -135,8 +138,32 @@ public class Migrator {
         }
     }
 
+    public void importKaputAdverse(List<OldAdverseStatus> kaputList) {
+        Map<String, Object>processInput=new HashMap<String, Object>();
+        int kaputCount=kaputList.size();
+        log.info("kaputCount={}", kaputCount);
+        processInput.put("START_GATEWAY", IacucStatus.Kaput.gatewayValue());
+        processInput.put("kaputCount", kaputCount);
+        OldAdverseStatus startUpStatus=kaputList.get(0);
+        String processInstanceId = processService.startAdverseKaputProcess(startUpStatus.adverseId, startUpStatus.userId, processInput);
+        if (processInstanceId != null) {
+            insertToMigratorTable(processInstanceId, startUpStatus.adverseStatusId, startUpStatus.statusCodeDate);
+        } else {
+            log.error("failed to import kaput: {}", startUpStatus);
+            return;
+        }
+        for (OldAdverseStatus status : kaputList) {
+            log.info("kaput: {}", status);
+            completeKaputAdverseTask(status);
+        }
+    }
+
     private void insertToMigratorTable(String taskId, String statusId, Date date) {
         this.jdbcTemplate.update(SQL_INSERT_MIGRATOR, taskId, statusId, date);
+    }
+
+    private void insertToAdverseMigratorTable(String taskId, String statusId, Date date) {
+        this.jdbcTemplate.update(SQL_INSERT_ADVERSE_MIGRATOR, taskId, statusId, date);
     }
 
     private void insertToCorrTable(String taskId, String corrOid, Date date) {
@@ -145,6 +172,10 @@ public class Migrator {
 
     public void insertToAttachedCorrTable(String statusId, String corrOid, Date date) {
         this.jdbcTemplate.update(SQL_INSERT_ATTACHED_CORR, statusId, corrOid, date);
+    }
+
+    public void insertToAdverseAttachedCorrTable(String statusId, String corrOid, Date date) {
+        this.jdbcTemplate.update(SQL_INSERT_ADVERSE_ATTACHED_CORR, statusId, corrOid, date);
     }
 
     private void insertToNoteTable(String taskId, String noteOid, Date date) {
@@ -335,6 +366,20 @@ public class Migrator {
             return null;
         }
         if (StringUtils.isBlank(corrRcd.body)) {
+            return null;
+        }
+        return corrRcd;
+    }
+
+    private AdverseCorr getAdverseCorrByCorrId(String notificationId) {
+        if (StringUtils.isBlank(notificationId)) {
+            return null;
+        }
+        AdverseCorr corrRcd = getAdverseCorrRcdByNotificationId(notificationId);
+        if (corrRcd == null) {
+            return null;
+        }
+        if (StringUtils.isBlank(corrRcd.text)) {
             return null;
         }
         return corrRcd;
@@ -566,6 +611,30 @@ public class Migrator {
         }
     }
 
+    private boolean attachAdverseSnapshotToTask(final String taskDefKey,
+                                         final OldAdverseStatus status,
+                                         final IacucTaskForm taskForm) {
+
+        if (StringUtils.isBlank(status.snapshotId)) return false;
+
+        try {
+            this.jdbcTemplate.query(SQL_ADVERSE_SNAPSHOT, new AbstractLobStreamingResultSetExtractor<Object>() {
+                @Override
+                protected void streamData(ResultSet resultSet) throws SQLException, IOException, DataAccessException {
+                    Date date = resultSet.getTimestamp("CREATIONDATE");
+                    InputStream is = resultSet.getBinaryStream("FILECONTEXT");
+                    if (is != null) {
+                        String attachmentId = processService.attachSnapshotToAdverseEventTask(status.adverseId, taskDefKey, is, date);
+                        taskForm.setSnapshotId(attachmentId);
+                    }
+                }
+            }, status.snapshotId);
+            return true;
+        } catch (Exception e) {
+            log.error("attach snapshot to task: status={}", status, e);
+            return false;
+        }
+    }
 
     public boolean importKaputStatus(OldStatus status) {
         String processId = processService.importKaputStatus(status.protocolId, status.userId);
@@ -618,6 +687,45 @@ public class Migrator {
         }
     }
 
+    boolean completeKaputAdverseTask(OldAdverseStatus status) {
+
+        IacucTaskForm form = new IacucTaskForm();
+        form.setBizKey(status.adverseId);
+        form.setAuthor(status.userId);
+        form.setComment(status.statusNote);
+        form.setTaskDefKey(IacucStatus.Kaput.taskDefKey());
+        // name using the original status code
+        String taskName = CodeToName.get(status.statusCode);
+        if (taskName != null) {
+            form.setTaskName(taskName);
+        } else {
+            form.setTaskName(status.statusCode);
+        }
+        //
+        attachAdverseSnapshotToTask(IacucStatus.Kaput.taskDefKey(), status, form);
+
+        // also check if it has correspondence !!!
+        AdverseCorr corrRcd = getAdverseCorrByCorrId(status.notificationId);
+        if (corrRcd != null) {
+            IacucCorrespondence corr = new IacucCorrespondence();
+            corr.setCreationDate(corrRcd.creationDate);
+            corr.setFrom(corrRcd.fromUserId);
+            corr.setRecipient(corrRcd.to);
+            corr.setSubject(corrRcd.subject);
+            corr.setText(corrRcd.text);
+            form.setCorrespondence(corr);
+        }
+
+        String taskId = processService.completeTaskByTaskForm(IacucProcessService.AdverseEventDefKey, form);
+        if (taskId != null) {
+            insertToAdverseMigratorTable(taskId, status.adverseStatusId, status.statusCodeDate);
+            // insert correspondence date
+            if (corrRcd != null) insertToAdverseAttachedCorrTable(status.adverseStatusId, corrRcd.oid, corrRcd.creationDate);
+            return true;
+        } else {
+            return false;
+        }
+    }
 
     public void foo() {
         CustomSqlExecution<IacucMybatisMapper, List<Map<String, Object>>>
@@ -798,6 +906,16 @@ public class Migrator {
         List<IacucTaskForm> list = new ArrayList<IacucTaskForm>();
         try {
             list = processService.getIacucProtocolHistory(protocolId);
+        } catch (Exception e) {
+            log.error("caught exception:", e);
+        }
+        return list;
+    }
+
+    public List<IacucTaskForm> getIacucAdverseHistory(String adverseId) {
+        List<IacucTaskForm> list = new ArrayList<IacucTaskForm>();
+        try {
+            list = processService.getIacucAdverseHistory(adverseId);
         } catch (Exception e) {
             log.error("caught exception:", e);
         }

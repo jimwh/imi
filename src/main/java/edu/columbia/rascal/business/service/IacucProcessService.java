@@ -86,6 +86,7 @@ class IacucProcessService {
         NameToKey.put(IacucStatus.Suspend.statusName(), IacucStatus.Suspend.taskDefKey() );
         NameToKey.put(IacucStatus.Withdraw.statusName(), IacucStatus.Withdraw.taskDefKey() );
         NameToKey.put(IacucStatus.FinalApproval.statusName(), IacucStatus.FinalApproval.taskDefKey() );
+        NameToKey.put(IacucStatus.Submit.statusName(), IacucStatus.Submit.taskDefKey() );
     }
 
     @Resource
@@ -192,6 +193,26 @@ class IacucProcessService {
         String attachmentType = "IACUC " + taskDefKey + " " + SNAPSHOT;
         // name: taskDefKey.protocolId.yyyyMMddHHmmss.pdf
         String attachmentName = taskDefKey + "." + protocolId + "." + getCurrentDateString(date) + ".pdf";
+        String attachmentDescription = taskDefKey + " " + SNAPSHOT;
+
+        return attachSnapshot(attachmentType,
+                task.getId(),
+                task.getProcessInstanceId(),
+                attachmentName,
+                attachmentDescription,
+                content);
+    }
+
+    @Transactional
+    String attachAdverseSnapshotToTask(String adverseId, String taskDefKey, InputStream content, Date date) {
+        Task task = getTaskByBizKeyAndTaskDefKey(AdverseEventDefKey, adverseId, taskDefKey);
+        if (task == null) {
+            log.error("can't find task=" + taskDefKey);
+            return null;
+        }
+        String attachmentType = "IACUC " + taskDefKey + " " + SNAPSHOT;
+        // name: taskDefKey.protocolId.yyyyMMddHHmmss.pdf
+        String attachmentName = taskDefKey + "." + adverseId + "." + getCurrentDateString(date) + ".pdf";
         String attachmentDescription = taskDefKey + " " + SNAPSHOT;
 
         return attachSnapshot(attachmentType,
@@ -761,6 +782,25 @@ class IacucProcessService {
                 content);
     }
 
+    @Transactional
+    String attachSnapshotToAdverseEventTask(final String adverseEvtId, final String taskDefKey, final InputStream content, final Date date) {
+        Task task = getTask(AdverseEventDefKey, adverseEvtId, taskDefKey);
+        if (task == null) {
+            log.error("no task taskDefKey={}, adverseEvtId={}", taskDefKey, adverseEvtId);
+            return null;
+        }
+        String attachmentType = "IACUC_ADVERSE_EVT_" + taskDefKey + "_" + SNAPSHOT;
+        // name: taskDefKey.adverseEvtid.yyyyMMddHHmmss.pdf
+        String attachmentName = taskDefKey + ".adverse.evt." + adverseEvtId + "." + getCurrentDateString(date) + ".pdf";
+        String attachmentDescription = taskDefKey + " " + SNAPSHOT;
+        return attachSnapshot(attachmentType,
+                task.getId(),
+                task.getProcessInstanceId(),
+                attachmentName,
+                attachmentDescription,
+                content);
+    }
+
     // using list instead of single for data migration
     private Task getTask(String processDefKey, String bizKey, String taskDefKey) {
         List<Task> list = taskService.createTaskQuery()
@@ -841,7 +881,7 @@ class IacucProcessService {
             if( IacucStatus.Kaput.isDefKey(hs.getTaskDefinitionKey()) ) {
                 String name=iacucTaskForm.getTaskName();
                 String key = NameToKey.get(name);
-                log.info("name={}, key={}", name, key);
+                // log.info("name={}, key={}", name, key);
                 if( key != null ) iacucTaskForm.setTaskDefKey(key);
             }
 
@@ -1019,6 +1059,16 @@ class IacucProcessService {
         return (list == null || list.isEmpty()) ? null : list.get(0);
     }
 
+    Task getTaskByBizKeyAndTaskDefKey(String processDefKey, String bizKey, String taskDefKey) {
+        Assert.notNull(bizKey, "undefined bizKey");
+        Assert.notNull(taskDefKey, "undefined taskDefKey");
+        List<Task> list = taskService.createTaskQuery()
+                .processDefinitionKey(processDefKey)
+                .processInstanceBusinessKey(bizKey)
+                .taskDefinitionKey(taskDefKey).list();
+        return (list == null || list.isEmpty()) ? null : list.get(0);
+    }
+
     Map<String, Set<String>> getBizKeyAndReviewer() {
         Map<String, Set<String>> map = new HashMap<String, Set<String>>();
         List<ProcessInstance> instanceList = runtimeService.createProcessInstanceQuery()
@@ -1084,7 +1134,26 @@ class IacucProcessService {
         if( instance == null ) return  null;
         String processInstanceId=instance.getProcessInstanceId();
         runtimeService.setProcessInstanceName(processInstanceId, IacucStatus.Kaput.name());
-        // log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
+        log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
+        return processInstanceId;
+    }
+
+
+    @Transactional
+    String startAdverseKaputProcess(String protocolId, String userId, Map<String, Object>processInput) {
+        /*  Because it is KAPUT so don't block it
+        if (isProtocolProcessStarted(protocolId)) {
+            log.error("cannot import kaput this protocol because it is process, protocolId={}", protocolId);
+            return null;
+        }
+        */
+        processInput.put(START_GATEWAY, IacucStatus.Kaput.gatewayValue());
+        identityService.setAuthenticatedUserId(userId);
+        ProcessInstance instance = runtimeService.startProcessInstanceByKey(AdverseEventDefKey, protocolId, processInput);
+        if( instance == null ) return  null;
+        String processInstanceId=instance.getProcessInstanceId();
+        runtimeService.setProcessInstanceName(processInstanceId, IacucStatus.Kaput.name());
+        log.info("protocolId={}, activityId={}, processId={}", protocolId, instance.getActivityId(), instance.getId());
         return processInstanceId;
     }
 

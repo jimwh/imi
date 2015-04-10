@@ -5,20 +5,11 @@
              targetNamespace="http://activiti.org/bpmn20">
 
     <process id="IacucAdverseEvent" name="Review Adverse Event Report">
-
-        <extensionElements>
-            <activiti:executionListener event="start" delegateExpression="${iacucListener}"/>
-        </extensionElements>
-
-        <userTask id="submit" name="Submit">
-            <extensionElements>
-                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
-            </extensionElements>
-        </userTask>
+        <userTask id="submit" name="Submit" />
 
         <transaction id="AEVT">
-            <userTask id="adverseEvent" name="Complete Adverse Event Report"/>
-            <userTask id="returnToPI" name="Return to PI" activiti:candidateGroups="IACUC_CAN_RETURN_TO_PI"/>
+            <userTask id="adverseEvent" name="Complete Adverse Event Report" activiti:candidateGroups="IACUC_CAN_APPROVE_AE_PROTOCOL"/>
+            <userTask id="returnToPI" name="Return to PI" activiti:candidateGroups="IACUC_CAN_APPROVE_AE_PROTOCOL"/>
 
             <startEvent id="tpStart"/>
             <parallelGateway id="tpFork"/>
@@ -38,11 +29,30 @@
             <cancelEventDefinition/>
         </boundaryEvent>
 
+        <userTask id="kaput" name="Kaput">
+            <documentation>Import old status</documentation>
+            <multiInstanceLoopCharacteristics isSequential="false">
+                <loopCardinality>${kaputCount}</loopCardinality>
+            </multiInstanceLoopCharacteristics>
+        </userTask>
+
         <startEvent id="theStart"/>
-        <sequenceFlow sourceRef="theStart" targetRef="submit"/>
+        <exclusiveGateway id="startGateway" name="start gateway"/>
+        
+        <sequenceFlow sourceRef="theStart" targetRef="startGateway"/>
+        
+        <sequenceFlow sourceRef="startGateway" targetRef="submit">
+        	<conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 1}]]></conditionExpression>
+        </sequenceFlow>
         <sequenceFlow sourceRef="submit" targetRef="AEVT"/>
+        
+        <sequenceFlow sourceRef="startGateway" targetRef="kaput">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 8}]]></conditionExpression>
+        </sequenceFlow>
+        
         <endEvent id="thEnd"/>
         <sequenceFlow sourceRef="AEVT" targetRef="thEnd"/>
+        <sequenceFlow sourceRef="kaput" targetRef="thEnd"/>
 
     </process>
 
