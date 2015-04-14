@@ -284,14 +284,54 @@ public class Foo {
         String adverseId = "3";
         List<OldAdverseStatus> oldAdverseStatusList = getOldAdverseStatusByAdverseId(adverseId, SQL_ADVERSE_STATUS);
         log.info("status size={}", oldAdverseStatusList.size());
-        // migrator.importKaputAdverse(oldAdverseStatusList);
-        jdbcTemplate.execute(SQL_UPDATE_MIGRATOR);
+        migrator.importKaputAdverse(oldAdverseStatusList);
+        // jdbcTemplate.execute(SQL_UPDATE_MIGRATOR);
         List<IacucTaskForm> list=migrator.getIacucAdverseHistory(adverseId);
         for(IacucTaskForm form: list) {
-            log.info( form.toString() );
+            log.info(form.toString());
         }
     }
 
+    public void testInProgressAdverse() {
+        List<String> adverseIdInprogressList = getAdverseIdList(SQL_IN_PROGRESS_ADVERSE_ID);
+        log.info("in progress IACUCADVERSEEVENT_OID size={}", adverseIdInprogressList.size());
+        for (String id : adverseIdInprogressList) {
+            List<OldAdverseStatus> oldAdverseStatusList = getOldAdverseStatusByAdverseId(id, SQL_ADVERSE_STATUS);
+            importInProgressAdverse(oldAdverseStatusList);
+        }
+    }
+
+    private void importInProgressAdverse(List<OldAdverseStatus> list) {
+        if(list==null || list.isEmpty()) return;
+        int lastIndex=list.size()-1;
+        OldAdverseStatus status=list.get(lastIndex);
+        if( AdverseEndSet.contains(status.statusCode) ) {
+            migrator.importKaputAdverse(list);
+            return;
+        }
+
+        Deque<OldAdverseStatus> deque=new LinkedList<OldAdverseStatus>();
+        while( true ) {
+            int index=list.size()-1;
+            if( index < 0) break;
+            if( "Submit".equals(list.get(index).statusCode)) {
+                deque.addFirst(list.get(index));
+                list.remove(index);
+                break;
+            }else {
+                deque.addFirst(list.get(index));
+                list.remove(index);
+            }
+        }
+
+        if( !list.isEmpty() ) {
+            migrator.importKaputAdverse(list);
+        }
+
+        if( !deque.isEmpty() ) {
+            migrator.migrateAdverseInProgress(deque);
+        }
+    }
 
     public void testTables() {
         setupTables();

@@ -23,13 +23,14 @@ public class Application {
         // foo.startup();
         // foo.testGetNote();
         // foo.testSubset();
-        foo.testTables();
+        // foo.testTables();
+        //
         // foo.printHistoryByBizKey(10633);
         //
         // foo.startup();
         //
         // foo.testAdverse();
-        // foo.testKaputAdverse();
+        foo.testKaputAdverse();
 
         SpringApplication.exit(ctx);
         log.info("application done...");

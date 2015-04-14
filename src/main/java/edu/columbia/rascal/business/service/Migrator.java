@@ -922,4 +922,15 @@ public class Migrator {
         return list;
     }
 
+
+    public void migrateAdverseInProgress(Deque<OldAdverseStatus> list) {
+        for (OldAdverseStatus status : list) {
+            migrateAdverse(status);
+        }
+    }
+
+    private void migrateAdverse(OldAdverseStatus status) {
+
+    }
+
 }
