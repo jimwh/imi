@@ -146,12 +146,11 @@ public class Migrator {
         processInput.put("kaputCount", kaputCount);
         OldAdverseStatus startUpStatus=kaputList.get(0);
         String processInstanceId = processService.startAdverseKaputProcess(startUpStatus.adverseId, startUpStatus.userId, processInput);
-        if (processInstanceId != null) {
-            insertToMigratorTable(processInstanceId, startUpStatus.adverseStatusId, startUpStatus.statusCodeDate);
-        } else {
+        if (processInstanceId == null) {
             log.error("failed to import kaput: {}", startUpStatus);
             return;
         }
+        //insertToMigratorTable(processInstanceId, startUpStatus.adverseStatusId, startUpStatus.statusCodeDate);
         for (OldAdverseStatus status : kaputList) {
             log.info("kaput: {}", status);
             completeKaputAdverseTask(status);
@@ -923,14 +922,42 @@ public class Migrator {
     }
 
 
-    public void migrateAdverseInProgress(Deque<OldAdverseStatus> list) {
-        for (OldAdverseStatus status : list) {
-            migrateAdverse(status);
+    public void migrateAdverseInProgress(Deque<OldAdverseStatus> deque) {
+        OldAdverseStatus status=deque.getFirst();
+        if( "Submit".equals(status.statusCode) ) {
+            if( migrateAdverse(status) ) {
+                deque.removeFirst();
+            }
         }
+        if( deque.isEmpty() ) return;
+        // the rest goes to kaput
+        List<OldAdverseStatus>list=new ArrayList<OldAdverseStatus>();
+        for(OldAdverseStatus oldAdverseStatus: deque) {
+            list.add(oldAdverseStatus);
+        }
+        importKaputAdverse(list);
     }
 
-    private void migrateAdverse(OldAdverseStatus status) {
-
+    private boolean migrateAdverse(OldAdverseStatus status) {
+        String processInstanceId = processService.startAdverseEventProcess(status.adverseId, status.userId);
+        if(processInstanceId==null){
+            log.error("failed to import: {}", status);
+            return false;
+        }
+        IacucTaskForm form=new IacucTaskForm();
+        form.setTaskDefKey(IacucStatus.Submit.taskDefKey());
+        attachAdverseSnapshotToTask(IacucStatus.Submit.taskDefKey(), status, form);
+        form.setBizKey(status.adverseId);
+        form.setAuthor(status.userId);
+        form.setTaskDefKey(IacucStatus.Submit.taskDefKey());
+        form.setTaskName(IacucStatus.Submit.statusName());
+        form.setComment(status.statusCode);
+        String taskId=processService.completeTaskByTaskForm(IacucProcessService.AdverseEventDefKey, form);
+        if (taskId != null) {
+            insertToAdverseMigratorTable(taskId, status.adverseStatusId, status.statusCodeDate);
+            return true;
+        }
+        return false;
     }
 
 }

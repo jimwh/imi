@@ -686,15 +686,19 @@ class IacucProcessService {
     }
 
     @Transactional
-    boolean startAdverseEventProcess(final String adverseEventId, final String userId) {
+    String startAdverseEventProcess(final String adverseEventId, final String userId) {
         if (getAdverseEventProcessInstance(adverseEventId) != null) {
             log.error("Process was already started for adverseEventId={}, userId={}", adverseEventId, userId);
-            return false;
+            return null;
         }
-        ProcessInstance instance = runtimeService.startProcessInstanceByKey(AdverseEventDefKey, adverseEventId);
-        log.info("adverseEventId={}, activityId={}, processId={}", adverseEventId, instance.getActivityId(), instance.getId());
-        runtimeService.setProcessInstanceName(instance.getProcessInstanceId(), IacucStatus.AdverseEvent.name());
-        return true;
+        Map<String, Object>map=new HashMap<String, Object>();
+        map.put(START_GATEWAY, 1);
+        ProcessInstance instance = runtimeService.startProcessInstanceByKey(AdverseEventDefKey, adverseEventId, map);
+        if(instance==null) return null;
+        String processInstanceId=instance.getProcessInstanceId();
+        log.info("adverseEventId={}, activityId={}, processId={}", adverseEventId, instance.getActivityId(), processInstanceId);
+        runtimeService.setProcessInstanceName(processInstanceId, IacucStatus.AdverseEvent.name());
+        return processInstanceId;
     }
 
     private ProcessInstance getAdverseEventProcessInstance(String bizKey) {
