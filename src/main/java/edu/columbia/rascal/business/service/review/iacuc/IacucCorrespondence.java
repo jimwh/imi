@@ -156,10 +156,13 @@ public class IacucCorrespondence {
         } else if (StringUtils.isBlank(subject)) {
         	log.error("empty subject");
             return map;
-        } else if (StringUtils.isBlank(text)) {
+        }
+        /*
+        else if (StringUtils.isBlank(text)) {
         	log.error("empty text");
             return map;
-        } 
+        }
+        */
 
         map.put("id", id);
         map.put("from", from);

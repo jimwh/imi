@@ -146,8 +146,8 @@ public class Foo {
                     " from IacucCorrespondence c, RASCAL_USER u where c.AUTHORRID=u.RID" +
                     " and SUBJECT is not null" +
                     " and length(trim(RECIPIENTS)) > 0" +
-                    " and CORRESPONDENCETEXT is not null" +
-                    " and length(trim(CORRESPONDENCETEXT)) > 0" +
+                    //" and CORRESPONDENCETEXT is not null" +
+                    //" and length(trim(CORRESPONDENCETEXT)) > 0" +
                     " and OID not in (select STATUSID_ from IACUC_CORR)" +
                     " and OID not in (select CORRID_ from IACUC_ATTACHED_CORR) order by OID";
 
