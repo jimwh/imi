@@ -151,6 +151,16 @@ public class Foo {
                     " and OID not in (select STATUSID_ from IACUC_CORR)" +
                     " and OID not in (select CORRID_ from IACUC_ATTACHED_CORR) order by OID";
 
+    private static final String SQL_ALL_ADVERSE_EVT_CORR =
+            "select OID, IACUCADVERSEEVENT_OID, USER_ID, CREATIONDATE,"+
+            "RECIPIENTS, CARBONCOPIES, SUBJECT, CORRESPONDENCETEXT"+
+            " from IACUCADVERSEEVENTCORRESPOND c, RASCAL_USER u"+
+            " where c.AUTHORRID=u.RID"+
+            " and SUBJECT is not null"+
+            " and length(trim(RECIPIENTS)) > 0"+
+            " and OID not in (select STATUSID_ from IACUC_ADVERSE_ATTACHED_CORR)"+
+            " and OID not in (select CORRID_ from IACUC_ADVERSE_ATTACHED_CORR)"+
+            " order by OID";
 
     private static final String SQL_OLD_NOTE =
             "select OID, N.IACUCPROTOCOLHEADERPER_OID, U.USER_ID, N.NOTETEXT, N.LASTMODIFICATIONDATE" +
@@ -363,16 +373,17 @@ public class Foo {
         log.info("number of protocols: {}", listProtocolId.size());
         walkThrough(listProtocolId);
         //
-        //
         log.info("import corr...");
         importCorr();
-        //
         //
         log.info("import note...");
         importOldNote();
         //
         log.info("import adverse event data ...");
         importAdverseEventData();
+        //
+        log.info("import adverse evt corr...");
+        importAdverseEvtCorr();
         //
         log.info("update migration tables...");
         updateMigrationTables();
@@ -390,6 +401,13 @@ public class Foo {
         log.info("corrList.size=" + corrList.size());
         for (CorrRcd corr : corrList) {
             migrator.importCorrRcd(corr);
+        }
+    }
+    private void importAdverseEvtCorr() {
+        List<AdverseCorr> corrList = getAllAdverseEvtCorr();
+        log.info("corrList.size=" + corrList.size());
+        for (AdverseCorr corr : corrList) {
+            migrator.importAdverseEvtCorrRcd(corr);
         }
     }
 
@@ -629,6 +647,26 @@ public class Foo {
         return this.jdbcTemplate.query(SQL_ALLCORR, mapper);
     }
 
+    public List<AdverseCorr> getAllAdverseEvtCorr() {
+        RowMapper<AdverseCorr> mapper = new RowMapper<AdverseCorr>() {
+            @Override
+            public AdverseCorr mapRow(ResultSet rs, int rowNum) throws SQLException {
+                AdverseCorr rcd = new AdverseCorr(
+                        rs.getString("OID"),
+                        rs.getString("IACUCADVERSEEVENT_OID"),
+                        rs.getString("USER_ID"),
+                        rs.getTimestamp("CREATIONDATE"),
+                        rs.getString("RECIPIENTS"),
+                        rs.getString("CARBONCOPIES"),
+                        rs.getString("SUBJECT"),
+                        rs.getString("CORRESPONDENCETEXT")
+                );
+                return rcd;
+            }
+        };
+        return this.jdbcTemplate.query(SQL_ALL_ADVERSE_EVT_CORR, mapper);
+    }
+
     public List<OldNote> getAllOldNotes() {
         RowMapper<OldNote> mapper = new RowMapper<OldNote>() {
             @Override
@@ -749,24 +787,8 @@ public class Foo {
     }
 
 
-    public void testInProgressAdverse() {
-        List<String> adverseIdInprogressList = getAdverseIdList(SQL_IN_PROGRESS_ADVERSE_ID);
-        log.info("in progress IACUCADVERSEEVENT_OID size={}", adverseIdInprogressList.size());
-        String adverseId="1544";
-        List<OldAdverseStatus> oldAdverseStatusList = getOldAdverseStatusByAdverseId(adverseId, SQL_ADVERSE_STATUS);
-        //importInProgressAdverse(oldAdverseStatusList);
-        /*
-        for (String id : adverseIdInprogressList) {
-            List<OldAdverseStatus> oldAdverseStatusList = getOldAdverseStatusByAdverseId(id, SQL_ADVERSE_STATUS);
-            importInProgressAdverse(oldAdverseStatusList);
-        }
-        */
 
-        List<IacucTaskForm> list=migrator.getIacucAdverseHistory(adverseId);
-        for(IacucTaskForm form: list) {
-            log.info(form.toString());
-        }
-
+    public void shutdown() {
+        migrator.shutdownExcutor();
     }
-
 }

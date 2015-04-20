@@ -36,6 +36,16 @@
             </multiInstanceLoopCharacteristics>
         </userTask>
 
+        <userTask id="addCorrespondence" name="Add Correspondence"
+                  activiti:candidateGroups="IACUC_CAN_ADD_CORRESPONDENCE">
+            <!--
+            <extensionElements>
+                <activiti:taskListener event="complete" delegateExpression="${iacucListener}"/>
+            </extensionElements>
+            -->
+        </userTask>
+
+
         <startEvent id="theStart"/>
         <exclusiveGateway id="startGateway" name="start gateway"/>
         
@@ -49,10 +59,15 @@
         <sequenceFlow sourceRef="startGateway" targetRef="kaput">
             <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 8}]]></conditionExpression>
         </sequenceFlow>
-        
+
+        <sequenceFlow sourceRef="startGateway" targetRef="addCorrespondence">
+            <conditionExpression xsi:type="tFormalExpression"><![CDATA[${START_GATEWAY == 6}]]></conditionExpression>
+        </sequenceFlow>
+
         <endEvent id="thEnd"/>
         <sequenceFlow sourceRef="AEVT" targetRef="thEnd"/>
         <sequenceFlow sourceRef="kaput" targetRef="thEnd"/>
+        <sequenceFlow sourceRef="addCorrespondence" targetRef="thEnd"/>
 
     </process>
 

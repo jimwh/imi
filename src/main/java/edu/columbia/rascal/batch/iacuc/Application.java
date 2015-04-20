@@ -39,9 +39,10 @@ public class Application {
         // foo.testInProgressAdverse();
 
         foo.startup();
-
+        foo.shutdown();
         SpringApplication.exit(ctx);
         log.info("application done...");
+
     }
 
     static void foobar() {

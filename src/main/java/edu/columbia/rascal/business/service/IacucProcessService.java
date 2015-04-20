@@ -532,7 +532,13 @@ class IacucProcessService {
     String addCorrespondence(IacucTaskForm taskForm) {
         if (startAddCorrespondenceProcess(taskForm.getBizKey()) != null) {
             return completeTaskByTaskForm(ProtocolProcessDefKey, taskForm);
+        }
+        return null;
+    }
 
+    String addAdverseEvtCorrespondence(IacucTaskForm taskForm) {
+        if (startAddAdverseEvtCorrespondenceProcess(taskForm.getBizKey()) != null) {
+            return completeTaskByTaskForm(AdverseEventDefKey, taskForm);
         }
         return null;
     }
@@ -545,7 +551,7 @@ class IacucProcessService {
     }
 
     private ProcessInstance startAddCorrespondenceProcess(String bizKey) {
-        ProcessInstance instance = getCorrProcessInstance(bizKey);
+        ProcessInstance instance = getCorrProcessInstance(ProtocolProcessDefKey,bizKey);
         if (instance != null) {
             log.error("add correspondence process is still running, protocolId={}", bizKey);
             return null;
@@ -553,6 +559,19 @@ class IacucProcessService {
         Map<String, Object> map = new HashMap<String, Object>();
         map.put(START_GATEWAY, IacucStatus.AddCorrespondence.gatewayValue());
         instance = runtimeService.startProcessInstanceByKey(ProtocolProcessDefKey, bizKey, map);
+        runtimeService.setProcessInstanceName(instance.getProcessInstanceId(), IacucStatus.AddCorrespondence.name());
+        return instance;
+    }
+
+    private ProcessInstance startAddAdverseEvtCorrespondenceProcess(String bizKey) {
+        ProcessInstance instance = getCorrProcessInstance(AdverseEventDefKey, bizKey);
+        if (instance != null) {
+            log.error("add correspondence process is still running, adverseEvtIdId={}", bizKey);
+            return null;
+        }
+        Map<String, Object> map = new HashMap<String, Object>();
+        map.put(START_GATEWAY, IacucStatus.AddCorrespondence.gatewayValue());
+        instance = runtimeService.startProcessInstanceByKey(AdverseEventDefKey, bizKey, map);
         runtimeService.setProcessInstanceName(instance.getProcessInstanceId(), IacucStatus.AddCorrespondence.name());
         return instance;
     }
@@ -572,26 +591,25 @@ class IacucProcessService {
     }
 
 
-    private ProcessInstance getCorrProcessInstance(String bizKey) {
-        return getProcessInstanceByName(bizKey, IacucStatus.AddCorrespondence.name());
+    private ProcessInstance getCorrProcessInstance(String processDefKey, String bizKey) {
+        return getProcessInstanceByName(processDefKey, bizKey, IacucStatus.AddCorrespondence.name());
     }
 
     private ProcessInstance getNoteProcessInstance(String bizKey) {
-        return getProcessInstanceByName(bizKey, IacucStatus.AddNote.name());
+        return getProcessInstanceByName(ProtocolProcessDefKey, bizKey, IacucStatus.AddNote.name());
     }
 
-    private ProcessInstance getProcessInstanceByName(String bizKey, String instanceName) {
+    private ProcessInstance getProcessInstanceByName(String processDefKey, String bizKey, String instanceName) {
         return runtimeService
                 .createProcessInstanceQuery()
-                .processDefinitionKey(ProtocolProcessDefKey)
+                .processDefinitionKey(processDefKey)
                 .processInstanceBusinessKey(bizKey)
                 .processInstanceName(instanceName)
                 .singleResult();
     }
 
-
     private ProcessInstance getProtocolProcessInstance(String bizKey, String instanceName) {
-        return getProcessInstanceByName(bizKey, instanceName);
+        return getProcessInstanceByName(ProtocolProcessDefKey, bizKey, instanceName);
     }
 
     Map<String, Date> getBizKeyMeetingDate(Set<String> bizKeys) {

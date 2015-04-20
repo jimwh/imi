@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.Executors;
 
 
 @Service
@@ -34,6 +35,10 @@ public class Migrator {
     private static final String SQL_INSERT_ADVERSE_MIGRATOR = "insert into IACUC_ADVERSE_MIGRATOR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
 
     private static final String SQL_INSERT_CORR = "insert into IACUC_CORR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
+
+    private static final String SQL_INSERT_ADVERSE_EVT_CORR =
+            "insert into IACUC_CORR (TASKID_, STATUSID_, DATE_) VALUES (?, ?, ?)";
+
     private static final String SQL_INSERT_ATTACHED_CORR = "insert into IACUC_ATTACHED_CORR (STATUSID_, CORRID_, DATE_) VALUES (?, ?, ?)";
     private static final String SQL_INSERT_ADVERSE_ATTACHED_CORR = "insert into IACUC_ADVERSE_ATTACHED_CORR (STATUSID_, CORRID_, DATE_) VALUES (?, ?, ?)";
 
@@ -112,6 +117,13 @@ public class Migrator {
     private ManagementService managementService;
     @Resource
     private IacucProcessService processService;
+
+
+    private SerialExecutor executor = new SerialExecutor(Executors.newFixedThreadPool(10));
+
+    public void shutdownExcutor() {
+        executor.shutdown();
+    }
 
     @Autowired
     public Migrator(JdbcTemplate jt) {
@@ -878,6 +890,30 @@ public class Migrator {
         taskForm.setAuthor(rcd.fromUserId);
         //
         String taskId = processService.addCorrespondence(taskForm);
+        if (taskId != null) {
+            insertToCorrTable(taskId, rcd.oid, rcd.creationDate);
+            return true;
+        }
+        return false;
+    }
+
+    public boolean importAdverseEvtCorrRcd(AdverseCorr rcd) {
+        IacucCorrespondence corr = new IacucCorrespondence();
+        corr.setFrom(rcd.fromUserId);
+        corr.setRecipient(rcd.to);
+        corr.setCarbonCopy(rcd.cc);
+        corr.setSubject(rcd.subject);
+        corr.setText(rcd.text);
+        corr.setCreationDate(rcd.creationDate);
+        //
+        IacucTaskForm taskForm = new IacucTaskForm();
+        taskForm.setCorrespondence(corr);
+        taskForm.setBizKey(rcd.adverseId);
+        taskForm.setTaskDefKey(IacucStatus.AddCorrespondence.taskDefKey());
+        taskForm.setTaskName(IacucStatus.AddCorrespondence.statusName());
+        taskForm.setAuthor(rcd.fromUserId);
+        //
+        String taskId = processService.addAdverseEvtCorrespondence(taskForm);
         if (taskId != null) {
             insertToCorrTable(taskId, rcd.oid, rcd.creationDate);
             return true;

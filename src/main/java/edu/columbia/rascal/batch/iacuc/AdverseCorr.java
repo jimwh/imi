@@ -15,7 +15,7 @@ public class AdverseCorr {
 
     public AdverseCorr(
             String oid,
-            String adverseIdId,
+            String adverseId,
             String fromUserId,
             Date creationDate,
             String recipients,
@@ -24,7 +24,7 @@ public class AdverseCorr {
             String text) {
 
         this.oid = oid;
-        this.adverseId = adverseIdId;
+        this.adverseId = adverseId;
         this.creationDate = creationDate;
         this.fromUserId = fromUserId;
         this.to = recipients;
